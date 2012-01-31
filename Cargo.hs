@@ -5,3 +5,5 @@ type Price = Int
 
 data Ware = Gold | Lumber | Oil
     deriving (Eq, Show)
+
+defaultCargo = []

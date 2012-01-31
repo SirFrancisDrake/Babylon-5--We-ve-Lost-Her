@@ -5,3 +5,4 @@ data ShipStats = ShipStats { shipStats_maxAccel :: Int
                            , shipStats_battery :: Int
                            }
             deriving (Show)
+
