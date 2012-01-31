@@ -4,10 +4,11 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Data.IntMap
 
-import Cargo
+import GlobalTVars
 import IntMapAux
 import Navigation
 import ShipStats
+import Wares
 import Wrappers
 
 type Ships = IntMap Ship
@@ -21,6 +22,7 @@ data Ship = Ship
              , ship_navModule :: NavModule
              , ship_cargo :: Cargo
              , ship_owner :: ShipOwner
+             , ship_ai :: AI
              }
         deriving (Show)
 
@@ -31,6 +33,7 @@ defaultShip = let defaultShipStats = shipStats defaultShipClass
                         defaultNavModule 
                         defaultCargo 
                         defaultOwner
+                        defaultAI
 
 data ShipClass = Liandra | Rhino | WhiteStar
                 deriving (Eq, Show)
@@ -43,6 +46,9 @@ data ShipOwner = SO_Station StationID | None
                 deriving (Eq, Show)
 
 defaultOwner = None
+
+type AI = String -- FIXME
+defaultAI = "none" -- FIXME
 
 firstEmptyKey :: IntMap a -> Int
 firstEmptyKey = fst . findMax
