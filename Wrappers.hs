@@ -1,11 +1,15 @@
 module Wrappers where
 
+-- Currency.hs
+type Money = Integer
+defaultCredits = 300000 -- FIXME
+
 -- Ships.hs
-type ShipID = Int
+type ShipID = Integer
 
 -- Stations.hs
-type StationID = Int
+type StationID = Integer
 
 -- Wares.hs
-type Amount = Int
-type Cost = Int
+type Amount = Integer
+type Cost = Integer
