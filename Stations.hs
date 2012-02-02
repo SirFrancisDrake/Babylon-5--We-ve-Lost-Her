@@ -3,13 +3,12 @@ module Stations where
 import Control.Concurrent.STM
 import Data.IntMap
 
+import Currency
+import IntMapAux
 import Wares
 import Wrappers
 
-type Stations = IntMap Station
-
-stations :: IO (TVar Stations)
-stations = newTVarIO empty
+type Stations = IntMap (TVar Station)
 
 data Station = Station
     { station_name :: String
@@ -21,7 +20,7 @@ data Station = Station
     deriving (Show)
 
 citadelStation :: Station
-citadelStation = Station "Citadel station" defaultCargo defaultCredits [1,2] "TriOptimum corp"
+citadelStation = Station "Citadel station" defaultCargo defaultMoney [1,2] "TriOptimum corp"
 
 instance WareOps Station where
     addWare st@Station{ station_cargo = cargo } w a = st{ station_cargo = addWare cargo w a}

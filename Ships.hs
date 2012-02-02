@@ -11,10 +11,16 @@ import ShipStats
 import Wares
 import Wrappers
 
-type Ships = IntMap Ship
+type Ships = IntMap (TVar Ship)
 
 ships :: IO (TVar Ships)
 ships = newTVarIO empty 
+
+modifyShip :: Int -> Ships -> (Ship -> Ship) -> IO ()
+modifyShip i ships fn = atomically $ do
+    let shipVar = ships ! i
+    ship <- readTVar shipVar
+    writeTVar shipVar (fn ship) 
 
 data Ship = Ship
              { ship_class :: ShipClass
