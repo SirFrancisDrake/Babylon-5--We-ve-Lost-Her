@@ -23,7 +23,7 @@ threadDelay = 3 -- seconds
 
 cycle :: World -> IO ()
 cycle world = do
-    runSomeReader world readerfn
+    runReaderT (updateStations >> updateShips >> updatePlayers) world
     sleep threadDelay
     cycle world
 
