@@ -4,7 +4,6 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Data.IntMap
 
-import GlobalTVars
 import IntMapAux
 import Navigation
 import ShipStats
@@ -12,9 +11,6 @@ import Wares
 import Wrappers
 
 type Ships = IntMap (TVar Ship)
-
-ships :: IO (TVar Ships)
-ships = newTVarIO empty 
 
 modifyShip :: Int -> Ships -> (Ship -> Ship) -> IO ()
 modifyShip i ships fn = atomically $ do
