@@ -1,11 +1,15 @@
 module GlobalTVars where
 
 import Control.Concurrent.STM
+import Control.Monad (forM)
 import Control.Monad.Reader
 import Data.IntMap
 import Prelude hiding (filter, map)
+import qualified Prelude as P
 
+import Currency
 import IntMapAux
+import Navigation
 import Owners
 import Ships
 import Stations
@@ -51,8 +55,8 @@ class Processable a where
 
 instance Processable Station where
     process sId ss = atomically $
-        readTVar (sId ss) >>= \station ->
-        writeTVar (sId ss) (addMoney station 3000) -- example tax income
+        readTVar (ss ! sId) >>= \station ->
+        writeTVar (ss ! sId) (addMoney station 3000) -- example tax income
 
 instance Processable Owner where
     process _ _ = return ()
@@ -63,8 +67,20 @@ instance Processable Ship where
 cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> mapM_ (\k -> process k imap) (keys imap)
 
-processDocking (TVar (IntMap (TVar Ship))) -> (TVar (IntMap (TVar Station))) -> IO ()
+processDocking :: (TVar (IntMap (TVar Ship))) -> (TVar (IntMap (TVar Station))) -> IO ()
 processDocking tships tstations = atomically $ do
     ships <- readTVar tships
     stations <- readTVar tstations
-    
+    needDocking <- filterM (\k -> readTVar (ships ! k) >>= return . docking) (keys ships)
+    dockingStations <- forM needDocking (\sh -> readTVar (ships ! sh) >>= return.dockingStID)
+    let dockingPairs = zip needDocking dockingStations
+    mapM_ (\(shid,stid) -> dockShSt shid ships stid stations) dockingPairs
+
+dockShSt :: Int -> (IntMap (TVar Ship)) -> Int -> (IntMap (TVar Station)) -> STM ()
+dockShSt shid shimap stid stimap = do
+    ship <- readTVar (shimap ! shid)
+    writeTVar (shimap ! shid) ship{ ship_navModule = 
+                                         NavModule (DockedToStation stid) Idle }
+    station <- readTVar (stimap ! stid)
+    writeTVar (stimap ! stid) station{ station_dockingBay =
+                                      (station_dockingBay station) ++ [shid] }

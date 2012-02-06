@@ -2,6 +2,7 @@ module Currency where
 
 import Wrappers
 
+defaultMoney :: Int
 defaultMoney = 300000
 
 class MoneyOps a where

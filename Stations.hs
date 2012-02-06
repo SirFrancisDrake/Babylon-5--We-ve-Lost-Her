@@ -20,7 +20,7 @@ data Station = Station
     deriving (Show)
 
 citadelStation :: Station
-citadelStation = Station "Citadel station" defaultCargo defaultMoney [1,2] "TriOptimum corp"
+citadelStation = Station "Citadel station" defaultCargo defaultMoney [] "TriOptimum corp"
 
 instance WareOps Station where
     addWare st@Station{ station_cargo = cargo } w a = st{ station_cargo = addWare cargo w a}

@@ -37,14 +37,18 @@ tick = fromInteger tickGame -- WARNING: MAGIC CONSTANT
 
 defaultNavModule = NavModule (Space (fromList [0,0,0]) Normalspace)  Idle
 
+dockingStNS :: NavStatus -> Bool
+dockingStNS (DockingToStation _) = True
+dockingStNS _ = False
+
+dockingStNSID :: NavStatus -> StationID
+dockingStNSID (DockingToStation i) = i
+dockingStNSID _ = undefined
+
 updateNavStatus :: NavModule -> NavModule -- ignores SpaceType FIXME
 updateNavStatus m@(NavModule pos Idle) = m 
 updateNavStatus m@(NavModule (Space pos st) (MovingTo vel targ)) =
     let posIfKeepMoving = pos + vel * tick
-        closeEnough = (length( targ-pos ) / (length vel) ) <= length( vel*tick )
+        closeEnough = length( targ-pos ) <= length( vel*tick )
     in if closeEnough then NavModule (Space targ st) Idle
                       else NavModule (Space posIfKeepMoving st) (MovingTo vel targ)
-
--- there's a critical bug making the ship fly away from target after getting close to it FIXME
--- normally I should be updating nav status from a monad, where I can put ship id into station docks
-

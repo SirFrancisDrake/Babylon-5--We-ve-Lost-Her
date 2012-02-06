@@ -57,3 +57,9 @@ firstEmptyKey = fst . findMax
 
 defaultShipStats :: ShipClass -> ShipStats
 defaultShipStats _ = ShipStats 1 10 100
+
+docking :: Ship -> Bool
+docking s = dockingStNS (nav_status $ ship_navModule s)
+
+dockingStID :: Ship -> StationID
+dockingStID = dockingStNSID . nav_status . ship_navModule

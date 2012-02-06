@@ -1,14 +1,14 @@
 module Wrappers where
 
 -- Currency.hs
-type Money = Integer
+type Money = Int
 
 -- Ships.hs
-type ShipID = Integer
+type ShipID = Int
 
 -- Stations.hs
-type StationID = Integer
+type StationID = Int
 
 -- Wares.hs
-type Amount = Integer
-type Cost = Integer
+type Amount = Int
+type Cost = Int
