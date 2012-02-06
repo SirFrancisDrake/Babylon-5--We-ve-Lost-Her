@@ -19,7 +19,8 @@ modifyShip i ships fn = atomically $ do
     writeTVar shipVar (fn ship) 
 
 data Ship = Ship
-             { ship_class :: ShipClass
+             { ship_name :: String
+             , ship_class :: ShipClass
              , ship_stats :: ShipStats
              , ship_navModule :: NavModule
              , ship_cargo :: Cargo
@@ -28,9 +29,18 @@ data Ship = Ship
              }
         deriving (Show)
 
+defaultShips = fromList $ zip [0..] [rimbauld, goldenHind]
+
+rimbauld :: Ship
+rimbauld = defaultShip{ ship_name = "Rimbauld" }
+
+goldenHind :: Ship
+goldenHind = defaultShip { ship_name = "Golden Hind" }
+
 defaultShip :: Ship
 defaultShip = let defaultShipStats = shipStats defaultShipClass
-              in Ship   defaultShipClass 
+              in Ship   "empty name"
+                        defaultShipClass 
                         defaultShipStats 
                         defaultNavModule 
                         defaultCargo 

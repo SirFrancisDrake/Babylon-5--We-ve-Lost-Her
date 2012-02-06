@@ -10,9 +10,6 @@ import Stations
 import Wares
 import Wrappers
 
-stations :: IO TVar (IntMap (TVar Station))
-stations = newTVar
-
 modify :: IntMap (TVar a) -> Int -> (a -> a) -> STM ()
 modify objs oid fn =
     let objVar = objs ! oid
@@ -33,9 +30,6 @@ exchange fw fa sw sa stations stationID = atomically $ do
     let station' = removeWare station fw fa
     let station'' = addWare station' sw sa
     writeTVar stationTVar station''
-
-purchase :: Ware -> Amount -> 
-
 
 addInstance :: TVar (IntMap (TVar a)) -> a -> IO ()
 addInstance instances newInstance = atomically $ do
