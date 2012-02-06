@@ -7,14 +7,40 @@ import Data.IntMap hiding (filter, map)         -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
 import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes once
+import Data.List (foldl') -- non-alphabetical so that I could write the above comment
+import System.Posix (sleep)
 
 import Currency
+import GlobalConst
 import IntMapAux
 import Navigation
 import Owners
-import Ships
-import Stations
+import Ships hiding (Ships(..))
+import Stations hiding (Stations(..))
 import Transactions
+
+-- File contents, [INDEX] stands for `search for the bracketed word 
+--                                  to get to the section mentioned`
+--
+-- [WORLD] - World data type, function for creating it,
+--           wrappers for `global` IntMaps and some auxiliary functions
+--
+-- [GLOBTVAR] - functions for dealing with stuff inside the `global` IntMaps
+--              quite rarely used, tbh, but possibly useful
+--
+-- [READFN] - functions inside ReaderT World that can be used
+--            inside the game cycle with just >>
+--            note that all the really cool stuff happens here
+--
+-- [PRINT] - debug function. But it prints the whole world! Ain't that somethin'
+--
+-- [PROCESS] - functions that process one particular `global` IntMap
+--             like, update station tax revenues, burn ships fuel and so on
+--             several auxiliary fns included
+
+
+-- SECTION BREAK
+-- [WORLD] -- see section description in the contents above
 
 data World = World
     { world_stations :: TVar (IntMap (TVar Station)) 
@@ -22,6 +48,9 @@ data World = World
     , world_owners :: TVar (IntMap (TVar Owner)) 
     } deriving ()
 
+type Owners = TVar (IntMap (TVar Owner))
+type Ships = TVar (IntMap (TVar Ship))
+type Stations = TVar (IntMap (TVar Station))
 
 makeNewWorld :: IO World
 makeNewWorld = do
@@ -34,12 +63,24 @@ makeNewWorld = do
     tOwners <- newTVarIO empty
     atomically $ intMapToTVarIntMap defaultOwners >>= writeTVar tOwners
 
+    fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
+
     return $ World tStations tShips tOwners
 
 intMapToTVarIntMap :: IntMap a -> STM (IntMap (TVar a))
 intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
                          where keys = P.map fst (toList ias)
                                vals = P.map snd (toList ias)
+
+gameCycle :: ReaderT World IO ()
+gameCycle = liftIO (sleep (fromIntegral tickReal))
+         >> cycleEverything
+      -- >> printWorld
+         >> gameCycle
+
+
+-- SECTION BREAK
+-- [GLOBTVAR] -- see section description in the contents above
 
 modifyGlobalTVar :: (IntMap a -> IntMap a) -> TVar (IntMap a) -> IO ()
 modifyGlobalTVar fn tas = atomically $
@@ -59,6 +100,10 @@ modifyInGlobalTVar :: (a -> Bool) -> (a -> a) -> TVar (IntMap a) -> IO ()
 modifyInGlobalTVar predicate modifier tas =
     let mod = I.map (\a -> if predicate a then modifier a else a)
     in modifyGlobalTVar mod tas
+
+
+-- SECTION BREAK
+-- [READFN] -- see section description in the contents above
 
 cycleEverything :: ReaderT World IO ()
 cycleEverything = do
@@ -81,9 +126,17 @@ printWorld = do
     liftIO $ putStrLn "\n\nShowing owners:"
     liftIO $ printClass (world_owners world)
 
+
+-- SECTION BREAK
+-- [PRINT] -- see section description in the contents above
+
 printClass :: (Show a) => TVar (IntMap (TVar a)) -> IO ()
 printClass tmap = readTVarIO tmap >>=
     (mapM readTVarIO) . (P.map snd) . toList >>= mapM_ print 
+
+
+-- SECTION BREAK
+-- [PROCESS] -- see section description in the contents above
 
 class Processable a where
     process :: Int -> IntMap (TVar a) -> IO ()
@@ -91,7 +144,10 @@ class Processable a where
 instance Processable Station where
     process sId ss = atomically $
         readTVar (ss ! sId) >>= \station ->
-        writeTVar (ss ! sId) (addMoney station 3000) -- example tax income
+        writeTVar (ss ! sId) $ stationFns station
+        where stationFns = foldl' (.) id
+                                  [ (\st -> addMoney st 3000) -- example tax income
+                                  ]
 
 instance Processable Owner where
     process _ _ = return ()
@@ -103,7 +159,21 @@ cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> 
                                  mapM_ (\k -> process k imap) (keys imap)
 
-processDocking :: (TVar (IntMap (TVar Ship))) -> (TVar (IntMap (TVar Station))) -> IO ()
+fillOwnedShips :: Ships -> Owners -> IO ()
+fillOwnedShips sh o = atomically $ do
+    ships <- readTVar sh
+    pairs <- mapM readTVar (shVals ships) >>= 
+                        return . (zip (shKeys ships)) . (P.map ship_owner) 
+    owners <- readTVar o
+    mapM_ (\(sid,oid) -> readTVar (owners ! oid) >>= \own ->
+              writeTVar (owners ! oid) own{ owner_shipsOwned = 
+                                            owner_shipsOwned own ++ [sid]}) 
+          pairs
+    where shKeys ships = P.map fst (toList ships)
+          shVals ships = P.map snd (toList ships)
+    
+
+processDocking :: Ships -> Stations -> IO ()
 processDocking tships tstations = atomically $ do
     ships <- readTVar tships
     stations <- readTVar tstations

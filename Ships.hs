@@ -24,7 +24,7 @@ data Ship = Ship
              , ship_stats :: ShipStats
              , ship_navModule :: NavModule
              , ship_cargo :: Cargo
-             , ship_owner :: ShipOwner
+             , ship_owner :: OwnerID
              , ship_ai :: AI
              }
         deriving (Show)
@@ -32,10 +32,10 @@ data Ship = Ship
 defaultShips = fromList $ zip [0..] [rimbauld, goldenHind]
 
 rimbauld :: Ship
-rimbauld = defaultShip{ ship_name = "Rimbauld" }
+rimbauld = defaultShip{ ship_name = "Rimbauld", ship_owner = 0 } -- 0 for Helen Ripley CARE
 
 goldenHind :: Ship
-goldenHind = defaultShip { ship_name = "Golden Hind" }
+goldenHind = defaultShip { ship_name = "Golden Hind", ship_owner = 0 } -- 0 for Helen Ripley CARE
 
 defaultShip :: Ship
 defaultShip = let defaultShipStats = shipStats defaultShipClass
@@ -57,7 +57,7 @@ shipStats _ = ShipStats 1 10 100
 data ShipOwner = SO_Station StationID | None
                 deriving (Eq, Show)
 
-defaultOwner = None
+defaultOwner = 0
 
 type AI = String -- FIXME
 defaultAI = "none" -- FIXME
