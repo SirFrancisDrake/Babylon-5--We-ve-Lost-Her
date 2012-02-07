@@ -66,6 +66,7 @@ makeNewWorld owner ship = do
     atomically $ intMapToTVarIntMap defaultOwners >>= writeTVar tOwners
 
     fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
+    dockMissing tShips tStations -- docks the ships that start docked
 
     return $ World tStations tShips tOwners
 
@@ -183,6 +184,14 @@ fillOwnedShips sh o = atomically $ do
     where shKeys ships = P.map fst (toList ships)
           shVals ships = P.map snd (toList ships)
     
+dockMissing :: Ships -> Stations -> IO ()
+dockMissing tships tstations = atomically $ do
+    ships <- readTVar tships
+    stations <- readTVar tstations
+    needDocking <- filterM (\k -> check ships k docked) (keys ships)
+    dockingStations <- forM needDocking (\k -> check ships k dockedStID)
+    let dockingPairs = zip needDocking dockingStations
+    mapM_ (\(shid,stid) -> dockShSt shid ships stid stations) dockingPairs
 
 processDocking :: Ships -> Stations -> IO ()
 processDocking tships tstations = atomically $ do
@@ -200,4 +209,6 @@ dockShSt shid shimap stid stimap = do
                                          NavModule (DockedToStation stid) Idle }
     station <- readTVar (stimap ! stid)
     writeTVar (stimap ! stid) station{ station_dockingBay =
-                                      (station_dockingBay station) ++ [shid] }
+                            if shid `notElem` (station_dockingBay station)
+                                    then  (station_dockingBay station) ++ [shid] 
+                                    else station_dockingBay station }

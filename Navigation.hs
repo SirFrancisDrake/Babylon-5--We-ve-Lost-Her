@@ -35,7 +35,7 @@ instance Show NavModule where
 tick = fromInteger tickGame -- WARNING: MAGIC CONSTANT
                             -- tickGame imported from GlobalConst
 
-defaultNavModule = NavModule (Space (fromList [0,0,0]) Normalspace)  Idle
+defaultNavModule = NavModule (DockedToStation 0)  Idle
 
 dockingStNS :: NavStatus -> Bool
 dockingStNS (DockingToStation _) = True
@@ -44,6 +44,14 @@ dockingStNS _ = False
 dockingStNSID :: NavStatus -> StationID
 dockingStNSID (DockingToStation i) = i
 dockingStNSID _ = undefined
+
+dockedStNS :: NavPosition -> Bool
+dockedStNS (DockedToStation _) = True
+dockedStNS _ = False
+
+dockedStNSID :: NavPosition -> StationID
+dockedStNSID (DockedToStation i) = i
+dockedStNSID _ = undefined
 
 updateNavStatus :: NavModule -> NavModule -- ignores SpaceType FIXME
 updateNavStatus m@(NavModule pos Idle) = m 

@@ -77,6 +77,12 @@ docking s = dockingStNS (nav_status $ ship_navModule s)
 dockingStID :: Ship -> StationID
 dockingStID = dockingStNSID . nav_status . ship_navModule
 
+docked :: Ship -> Bool
+docked s = dockedStNS (nav_position $ ship_navModule s)
+
+dockedStID :: Ship -> StationID
+dockedStID = dockedStNSID . nav_position . ship_navModule
+
 instance WareOps Ship where
     addWare st@Ship{ ship_cargo = cargo } w a = st{ ship_cargo = addWare cargo w a}
     enoughWare st@Ship{ ship_cargo = cargo } w a = enoughWare cargo w a
