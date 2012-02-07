@@ -47,15 +47,18 @@ defaultShip = let defaultShipStats = shipStats defaultShipClass
                         defaultOwner
                         defaultAI
 
-data ShipClass = Liandra | Rhino | WhiteStar
+data ShipClass = Liandra -- small Anla'Shok vessel
+               | Rhino -- Corvette-sized human freighter
+               | WhiteStar -- Large League cruiser
+               | Clark -- small human fighter-transport
+               | Hel -- small minbari fighter-transport
+               | GQuan -- small narn transport
+               | Londo -- small narn fighter-transport
                 deriving (Eq, Show)
 
 defaultShipClass = Rhino
 
 shipStats _ = ShipStats 1 10 100
-
-data ShipOwner = SO_Station StationID | None
-                deriving (Eq, Show)
 
 defaultOwner = 0
 
@@ -73,3 +76,8 @@ docking s = dockingStNS (nav_status $ ship_navModule s)
 
 dockingStID :: Ship -> StationID
 dockingStID = dockingStNSID . nav_status . ship_navModule
+
+instance WareOps Ship where
+    addWare st@Ship{ ship_cargo = cargo } w a = st{ ship_cargo = addWare cargo w a}
+    enoughWare st@Ship{ ship_cargo = cargo } w a = enoughWare cargo w a
+    checkWare st@Ship{ ship_cargo = cargo } w = checkWare cargo w

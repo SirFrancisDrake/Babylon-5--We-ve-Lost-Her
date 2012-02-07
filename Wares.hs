@@ -1,5 +1,7 @@
 module Wares where
 
+import Data.List (foldl')
+
 import Wrappers
 
 data Ware = Fuel | Food | Supplies
@@ -26,20 +28,25 @@ makeCargo pairs =
     let fns = map ( \(w,a) -> 
                         \t -> addWare t w a) 
                   pairs
-    in (foldl (.) id fns) defaultCargo
+    in (foldl' (.) id fns) defaultCargo
 
 instance WareOps Cargo where
     addWare (Cargo ws) ware amount =
         let fn = \acc (w,a) -> if (w == ware) then acc ++ [(w,a+amount)]
                                               else acc ++ [(w,a)]
-        in Cargo $ foldl fn [] ws
+        in Cargo $ foldl' fn [] ws
     enoughWare (Cargo ws) ware amount =
         let fn = \acc (w,a) -> if ((w == ware) && (a >= amount)) then True
                                                                  else acc
-        in foldl fn False ws
+        in foldl' fn False ws
+    checkWare (Cargo ws) ware =
+        let fn = \acc (w,a) -> if (w == ware) then a
+                                              else acc
+        in foldl' fn (-1) ws
 
 class WareOps a where
     addWare :: a -> Ware -> Amount -> a
+    checkWare :: a -> Ware -> Amount
     removeWare :: a -> Ware -> Amount -> a
     enoughWare :: a -> Ware -> Amount -> Bool
     mbRemoveWare :: a -> Ware -> Amount -> Maybe a

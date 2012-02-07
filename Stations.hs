@@ -31,6 +31,7 @@ defaultStations = fromList $ zip [0..] [citadelStation, solarisOne]
 instance WareOps Station where
     addWare st@Station{ station_cargo = cargo } w a = st{ station_cargo = addWare cargo w a}
     enoughWare st@Station{ station_cargo = cargo } w a = enoughWare cargo w a
+    checkWare st@Station{ station_cargo = cargo } w = checkWare cargo w
 
 instance MoneyOps Station where
     addMoney st@Station{ station_money = m } amount = st{ station_money = m + amount }

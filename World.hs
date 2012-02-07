@@ -1,4 +1,4 @@
-module GlobalTVars where
+module World where
 
 import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
@@ -52,15 +52,17 @@ type Owners = TVar (IntMap (TVar Owner))
 type Ships = TVar (IntMap (TVar Ship))
 type Stations = TVar (IntMap (TVar Station))
 
-makeNewWorld :: IO World
-makeNewWorld = do
+makeNewWorld :: Owner -> Ship -> IO World
+makeNewWorld owner ship = do
     tStations <- newTVarIO empty
     atomically $ intMapToTVarIntMap defaultStations >>= writeTVar tStations
 
     tShips <- newTVarIO empty
+    addInstance tShips ship -- adds the player character's ship
     atomically $ intMapToTVarIntMap defaultShips >>= writeTVar tShips 
 
     tOwners <- newTVarIO empty
+    addInstance tOwners owner -- adds the player character
     atomically $ intMapToTVarIntMap defaultOwners >>= writeTVar tOwners
 
     fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
@@ -72,11 +74,17 @@ intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
                          where keys = P.map fst (toList ias)
                                vals = P.map snd (toList ias)
 
-gameCycle :: ReaderT World IO ()
-gameCycle = liftIO (sleep (fromIntegral tickReal))
+          -- stop lock
+gameCycle :: TVar Bool -> ReaderT World IO ()
+gameCycle lock = liftIO (sleep (fromIntegral tickReal))
          >> cycleEverything
       -- >> printWorld
-         >> gameCycle
+         >> (liftIO $ readTVarIO lock)
+         >>= \stop -> if (not stop) then gameCycle lock
+                                    else return ()
+
+gameCycleIO :: World -> TVar Bool -> IO ()
+gameCycleIO w lock = runReaderT (gameCycle lock) w
 
 
 -- SECTION BREAK
@@ -167,7 +175,10 @@ fillOwnedShips sh o = atomically $ do
     owners <- readTVar o
     mapM_ (\(sid,oid) -> readTVar (owners ! oid) >>= \own ->
               writeTVar (owners ! oid) own{ owner_shipsOwned = 
-                                            owner_shipsOwned own ++ [sid]}) 
+                if sid `notElem` (owner_shipsOwned own) then
+                                                owner_shipsOwned own ++ [sid]
+                                                        else
+                                                owner_shipsOwned own})
           pairs
     where shKeys ships = P.map fst (toList ships)
           shVals ships = P.map snd (toList ships)
