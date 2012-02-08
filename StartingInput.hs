@@ -7,7 +7,6 @@ module StartingInput (
 
 import Control.Applicative ((<$>))
 import Data.Char (toLower)
-import Data.List (inits)
 import Data.Maybe (fromJust, isJust)
 
 import PersonalData
@@ -42,7 +41,6 @@ genOwner name race career = Owner name
                                   [0] -- ships owned
                                   (Person race career) 
                                   (startingMoney race career)
-
 
 genShip :: ShipName -> Race -> Career -> Ship
 genShip name Human Merchant = shStandardRhino{ ship_name = name, ship_owner = 0 }
@@ -80,11 +78,6 @@ instance Recognize Race where
                          Just "narn" -> Just Narn
                          otherwise -> Nothing
                     
-exhaustive :: (Eq a) => [a] -> [[a]] -> Maybe [a]
-exhaustive pattern patterns = let patternList = filter (\pt -> pattern `elem` (inits pt)) patterns
-                              in if (length patternList == 1) then Just $ head patternList
-                                                              else Nothing
-
 getValidInput :: (Eq a) => (String -> Maybe a) -> IO a
 getValidInput fn = do
     input <- fn <$> getLine

@@ -13,13 +13,15 @@ data NavModule = NavModule
 
 data NavPosition = DockedToStation StationID
                  | DockedToShip ShipID
-                 | Space Vector3D SpaceType
+                 | Space { nav_pos_vec :: Vector3D
+                         , nav_pos_type :: SpaceType }
               -- | Thirdspace { x :: Int, y :: Int, z :: Int }
     deriving (Eq, Show)
 
 data NavStatus = Idle 
                | DockingToStation StationID 
                | DockingToShip ShipID
+               | Undocking
                | MovingTo { navMoving_velocity :: Vector3D
                           , navMoving_target :: Vector3D }
     deriving (Show)
@@ -40,6 +42,10 @@ defaultNavModule = NavModule (DockedToStation 0)  Idle
 dockingStNS :: NavStatus -> Bool
 dockingStNS (DockingToStation _) = True
 dockingStNS _ = False
+
+undockingStNS :: NavStatus -> Bool
+undockingStNS Undocking = True
+undockingStNS _ = False
 
 dockingStNSID :: NavStatus -> StationID
 dockingStNSID (DockingToStation i) = i

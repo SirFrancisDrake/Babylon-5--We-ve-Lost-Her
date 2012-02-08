@@ -18,6 +18,7 @@ import Owners
 import Ships hiding (Ships(..))
 import Stations hiding (Stations(..))
 import Transactions
+import qualified Vector as V
 
 -- File contents, [INDEX] stands for `search for the bracketed word 
 --                                  to get to the section mentioned`
@@ -124,6 +125,7 @@ cycleEverything = do
     liftIO $ cycleClass stations 
     liftIO $ cycleClass ships 
     liftIO $ processDocking ships stations
+    liftIO $ processUndocking ships stations
 
 printWorld :: ReaderT World IO ()
 printWorld = do
@@ -212,3 +214,25 @@ dockShSt shid shimap stid stimap = do
                             if shid `notElem` (station_dockingBay station)
                                     then  (station_dockingBay station) ++ [shid] 
                                     else station_dockingBay station }
+
+processUndocking :: Ships -> Stations -> IO ()
+processUndocking tships tstations = atomically $ do
+    ships <- readTVar tships
+    stations <- readTVar tstations
+    needUndocking <- filterM (\k -> check ships k undocking) (keys ships)
+    undockingStations <- forM needUndocking (\k -> check ships k dockingStID)
+    let undockingPairs = zip needUndocking undockingStations
+    mapM_ (\(shid,stid) -> undockShSt shid ships stid stations) undockingPairs
+
+undockShSt :: Int -> (IntMap (TVar Ship)) -> Int -> (IntMap (TVar Station)) -> STM ()
+undockShSt shid shimap stid stimap = do
+    ship <- readTVar (shimap ! shid)
+    station <- readTVar (stimap ! stid)
+    let departure = V.fromList [0.1, 0.1, 0.1] -- magic constant FIXME
+    let stationPos = nav_pos_vec (station_position station)
+    let newShipNavModule = NavModule (Space (stationPos + departure) 
+                                            Normalspace) 
+                                     Idle 
+    writeTVar (shimap ! shid) ship{ ship_navModule = newShipNavModule }
+    writeTVar (stimap ! stid) station{ station_dockingBay =
+                            P.filter (/= shid) (station_dockingBay station) }

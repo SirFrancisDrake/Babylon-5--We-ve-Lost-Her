@@ -8,6 +8,25 @@ import Stations
 import Wares
 import Wrappers
 
+data ZippedAI = ZippedAI { zai_current :: ZCommand 
+                         , zai_list :: [ZCommand]
+                         }
+    deriving (Show)
+
+data ZCommand = ZGo StationID | ZBuy Ware Amount | ZSell Ware Amount
+    deriving (Eq, Show)
+
+              -- where2buy   where2sell
+defProviderAI :: StationID -> StationID -> Ware -> Amount -> ZippedAI
+defProviderAI bid sid w a = ZippedAI (ZGo bid)
+                                   [ (ZBuy w a)
+                                   , (ZGo sid)
+                                   , (ZSell w a)
+                                   ]
+
+next :: ZippedAI -> ZippedAI
+next (ZippedAI c (x:xs)) = ZippedAI x (xs ++ [c])
+
 data AI = AI [State] [Trigger]
     deriving ()
 
