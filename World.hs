@@ -10,6 +10,7 @@ import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes on
 import Data.List (foldl') -- non-alphabetical so that I could write the above comment
 import System.Posix (sleep)
 
+import AI
 import Currency
 import GlobalConst
 import IntMapAux
@@ -19,6 +20,8 @@ import Ships hiding (Ships(..))
 import Stations hiding (Stations(..))
 import Transactions
 import qualified Vector as V
+import Wares
+import Wrappers
 
 -- File contents, [INDEX] stands for `search for the bracketed word 
 --                                  to get to the section mentioned`
@@ -157,7 +160,7 @@ instance Processable Station where
         readTVar (ss ! sId) >>= \station ->
         writeTVar (ss ! sId) $ stationFns station
         where stationFns = foldl' (.) id
-                                  [ (\st -> addMoney st 3000) -- example tax income
+                                  [ (\st -> addMoney 3000 st) -- example tax income
                                   ]
 
 instance Processable Owner where
@@ -193,7 +196,7 @@ dockMissing tships tstations = atomically $ do
     needDocking <- filterM (\k -> check ships k docked) (keys ships)
     dockingStations <- forM needDocking (\k -> check ships k dockedStID)
     let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(shid,stid) -> dockShSt shid ships stid stations) dockingPairs
+    mapM_ (\(shid,stid) -> dockShSt (ships ! shid) shid (stations ! stid) stid) dockingPairs
 
 processDocking :: Ships -> Stations -> IO ()
 processDocking tships tstations = atomically $ do
@@ -202,15 +205,14 @@ processDocking tships tstations = atomically $ do
     needDocking <- filterM (\k -> check ships k docking) (keys ships)
     dockingStations <- forM needDocking (\k -> check ships k dockingStID)
     let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(shid,stid) -> dockShSt shid ships stid stations) dockingPairs
+    mapM_ (\(shid,stid) -> dockShSt (ships ! shid) shid (stations ! stid) stid) dockingPairs
 
-dockShSt :: Int -> (IntMap (TVar Ship)) -> Int -> (IntMap (TVar Station)) -> STM ()
-dockShSt shid shimap stid stimap = do
-    ship <- readTVar (shimap ! shid)
-    writeTVar (shimap ! shid) ship{ ship_navModule = 
-                                         NavModule (DockedToStation stid) Idle }
-    station <- readTVar (stimap ! stid)
-    writeTVar (stimap ! stid) station{ station_dockingBay =
+dockShSt :: (TVar Ship) -> Int -> (TVar Station) -> Int -> STM ()
+dockShSt tsh shid tst stid = do
+    ship <- readTVar tsh
+    writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation stid) Idle }
+    station <- readTVar tst
+    writeTVar tst station{ station_dockingBay =
                             if shid `notElem` (station_dockingBay station)
                                     then  (station_dockingBay station) ++ [shid] 
                                     else station_dockingBay station }
@@ -222,17 +224,111 @@ processUndocking tships tstations = atomically $ do
     needUndocking <- filterM (\k -> check ships k undocking) (keys ships)
     undockingStations <- forM needUndocking (\k -> check ships k dockingStID)
     let undockingPairs = zip needUndocking undockingStations
-    mapM_ (\(shid,stid) -> undockShSt shid ships stid stations) undockingPairs
+    mapM_ (\(shid,stid) -> undockShSt (ships ! shid) shid (stations ! stid) stid) undockingPairs
 
-undockShSt :: Int -> (IntMap (TVar Ship)) -> Int -> (IntMap (TVar Station)) -> STM ()
-undockShSt shid shimap stid stimap = do
-    ship <- readTVar (shimap ! shid)
-    station <- readTVar (stimap ! stid)
+undockShSt :: (TVar Ship) -> Int -> (TVar Station) -> Int -> STM ()
+undockShSt tsh shid tst stid = do
+    ship <- readTVar tsh
+    station <- readTVar tst
     let departure = V.fromList [0.1, 0.1, 0.1] -- magic constant FIXME
     let stationPos = nav_pos_vec (station_position station)
-    let newShipNavModule = NavModule (Space (stationPos + departure) 
-                                            Normalspace) 
+    let newShipNavModule = NavModule (SNPSpace $ Space (stationPos + departure) 
+                                                 Normalspace) 
                                      Idle 
-    writeTVar (shimap ! shid) ship{ ship_navModule = newShipNavModule }
-    writeTVar (stimap ! stid) station{ station_dockingBay =
+    writeTVar tsh ship{ ship_navModule = newShipNavModule }
+    writeTVar tst station{ station_dockingBay =
                             P.filter (/= shid) (station_dockingBay station) }
+
+processAI :: ShipAI -> ShipID -> ReaderT World IO ShipAI -- this fn does more than its 
+processAI ai@(ShipAI (SGo stid) ais) shid = do     -- type signature shows, care
+    world <- ask
+    ships <- liftIO $ readTVarIO $  world_ships world
+    stations <- liftIO $ readTVarIO $ world_stations world
+    satisfied <- liftIO $ readTVarIO (ships ! shid) >>= return . (flip dockedToSt stid)
+    if satisfied then return $ next ai
+                 else return ai
+processAI ai@(ShipAI (SBuy bw ba) ais) shid = do
+    world <- ask
+
+    ships <- liftIO $ readTVarIO $  world_ships world
+    let tsh = ships ! shid
+    sh <- liftIO $ readTVarIO tsh
+
+    stations <- liftIO $ readTVarIO $ world_stations world
+    let tst = stations ! (dockedStID sh)
+    st <- liftIO $ readTVarIO tst
+
+    owners <- liftIO $ readTVarIO $ world_owners world
+    let to = owners ! (ship_owner sh)
+    o <- liftIO $ readTVarIO to
+
+    let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
+    let enoughMoneyP = owner_money o >= station_wareCost st bw * fromIntegral ba
+    let enoughWareP = enoughWare bw ba st
+
+    if and [enoughSpaceP, enoughMoneyP, enoughWareP] 
+        then liftIO $ atomically $ do
+            stmRemoveWare bw ba tst
+            stmAddWare bw ba tsh
+            stmRemoveMoney (station_wareCost st bw * fromIntegral ba) to
+            stmAddMoney (station_wareCost st bw * fromIntegral ba) tst
+            return $ next ai
+        else return ai
+processAI ai@(ShipAI (SSell sw sa) ais) shid = do
+    world <- ask
+
+    ships <- liftIO $ readTVarIO $  world_ships world
+    let tsh = ships ! shid
+    sh <- liftIO $ readTVarIO tsh
+
+    stations <- liftIO $ readTVarIO $ world_stations world
+    let tst = stations ! (dockedStID sh)
+    st <- liftIO $ readTVarIO tst
+
+    owners <- liftIO $ readTVarIO $ world_owners world
+    let to = owners ! (ship_owner sh)
+    o <- liftIO $ readTVarIO to
+
+    let enoughMoneyP = station_money st >= station_wareCost st sw * fromIntegral sa
+    let enoughWareP = enoughWare sw sa sh
+
+    if and [enoughMoneyP, enoughWareP] 
+        then liftIO $ atomically $ do
+            stmRemoveWare sw sa tsh
+            stmAddWare sw sa tst
+            stmRemoveMoney (station_wareCost st sw * fromIntegral sa) tst
+            stmAddMoney (station_wareCost st sw * fromIntegral sa) to
+            return $ next ai
+        else if enoughWareP then return $ next ai -- if AI doesn't have the cargo,
+                            else return ai -- it should move on to its next task
+                       -- otherwise it should wait for station to get enough money
+processAI _ _ = undefined
+
+-- Following 2 fns are named counter-intuitive, since only one is invasive
+-- still, I think their return types go well with their names
+-- but anyways, these should be regarded as utility
+stmPerform :: (a -> b) -> (TVar a) -> STM b
+stmPerform fn tobj = readTVar tobj >>= return . fn
+
+stmPerform_ :: (a -> a) -> (TVar a) -> STM ()
+stmPerform_ fn tobj = readTVar tobj >>= (writeTVar tobj) . fn
+
+-- WareOps for STM'ed instances of WareOps
+stmCheckWare :: (WareOps a) => Ware -> (TVar a) -> STM Amount
+stmCheckWare w = stmPerform (checkWare w)
+
+stmEnoughWare :: (WareOps a) => Ware -> Amount -> (TVar a) -> STM Bool
+stmEnoughWare w a = stmPerform (enoughWare w a)
+
+stmAddWare :: (WareOps a) => Ware -> Amount -> (TVar a) -> STM ()
+stmAddWare w a = stmPerform_ (addWare w a)
+
+stmRemoveWare :: (WareOps a) => Ware -> Amount -> (TVar a) -> STM ()
+stmRemoveWare w a = stmPerform_ (removeWare w a)
+
+-- MoneyOps for STM'ed instances of MoneyOps
+stmAddMoney :: (MoneyOps a) => Amount -> (TVar a) -> STM ()
+stmAddMoney a = stmPerform_ (addMoney a)
+
+stmRemoveMoney :: (MoneyOps a) => Amount -> (TVar a) -> STM ()
+stmRemoveMoney a = stmPerform_ (removeMoney a)

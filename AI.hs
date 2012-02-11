@@ -1,54 +1,28 @@
 module AI where
 
-import Character
 import Currency
 import Owners
-import Ships hiding (AI(..))
 import Stations
 import Wares
 import Wrappers
 
-data ZippedAI = ZippedAI { zai_current :: ZCommand 
-                         , zai_list :: [ZCommand]
-                         }
+data ShipAI = ShipAI { zai_current :: SCommand
+                     , zai_list :: [SCommand]
+                     }
+            | SAIPlayer
+            | SAINone
     deriving (Show)
 
-data ZCommand = ZGo StationID | ZBuy Ware Amount | ZSell Ware Amount
+data SCommand = SGo StationID | SBuy Ware Amount | SSell Ware Amount
     deriving (Eq, Show)
 
               -- where2buy   where2sell
-defProviderAI :: StationID -> StationID -> Ware -> Amount -> ZippedAI
-defProviderAI bid sid w a = ZippedAI (ZGo bid)
-                                   [ (ZBuy w a)
-                                   , (ZGo sid)
-                                   , (ZSell w a)
-                                   ]
+defSupplyAI :: StationID -> StationID -> Ware -> Amount -> ShipAI
+defSupplyAI bid sid w a = ShipAI (SGo bid)
+                                 [ (SBuy w a)
+                                 , (SGo sid)
+                                 , (SSell w a)
+                                 ]
 
-next :: ZippedAI -> ZippedAI
-next (ZippedAI c (x:xs)) = ZippedAI x (xs ++ [c])
-
-data AI = AI [State] [Trigger]
-    deriving ()
-
-type State = String
-
-type Trigger = (State -> Ship -> Character -> (State, Command))
-
-data Command = Buy Ware Amount | Idle
-    deriving (Eq, Show)
-
-exampleAI :: AI
-exampleAI = AI [ "WaitForCargo"
-               , "GoToSell"
-               , "Sell"
-               , "GoToBuy"
-               , "Buy"
-               ]
-               [ \"GoToSell" sh ch -> ("Sell",Buy Fuel 100)]
-
-resupplyFuel :: Trigger -- example, it's not actually operational
-resupplyFuel _ ship char =
-    let fuel = checkWare ship Fuel
-    in if fuel < 100 then ("Ok", Buy Fuel (100 - fuel))
-                     else ("Problem", Idle)
-
+next :: ShipAI -> ShipAI
+next (ShipAI c (x:xs)) = ShipAI x (xs ++ [c])

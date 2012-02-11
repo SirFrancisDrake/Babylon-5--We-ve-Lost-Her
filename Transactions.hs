@@ -27,8 +27,8 @@ exchange fw fa sw sa stations stationID = atomically $ do
     stationList <- readTVar stations
     let stationTVar = stationList ! stationID
     station <- readTVar stationTVar
-    let station' = removeWare station fw fa
-    let station'' = addWare station' sw sa
+    let station' = removeWare fw fa station
+    let station'' = addWare sw sa station'
     writeTVar stationTVar station''
 
 addInstance :: TVar (IntMap (TVar a)) -> a -> IO ()

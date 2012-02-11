@@ -15,3 +15,4 @@ type StationID = Int
 -- Wares.hs
 type Amount = Int
 type Cost = Int
+type Weight = Double

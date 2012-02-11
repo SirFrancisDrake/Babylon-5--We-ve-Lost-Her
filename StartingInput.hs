@@ -9,6 +9,7 @@ import Control.Applicative ((<$>))
 import Data.Char (toLower)
 import Data.Maybe (fromJust, isJust)
 
+import AI
 import PersonalData
 import Ships
 import ShipsData
@@ -42,13 +43,20 @@ genOwner name race career = Owner name
                                   (Person race career) 
                                   (startingMoney race career)
 
+fetchShip :: Race -> Career -> Ship
+fetchShip Human Merchant = shStandardRhino
+fetchShip Human Military = shStandardClark
+fetchShip Minbari Merchant = shStandardLiandra
+fetchShip Minbari Military = shStandardHel
+fetchShip Narn Merchant = shStandardGQuan
+fetchShip Narn Military = shStandardLondo
+
 genShip :: ShipName -> Race -> Career -> Ship
-genShip name Human Merchant = shStandardRhino{ ship_name = name, ship_owner = 0 }
-genShip name Human Military = shStandardClark{ ship_name = name, ship_owner = 0  }
-genShip name Minbari Merchant = shStandardLiandra{ ship_name = name, ship_owner = 0  }
-genShip name Minbari Military = shStandardHel{ ship_name = name, ship_owner = 0  }
-genShip name Narn Merchant = shStandardGQuan{ ship_name = name, ship_owner = 0  }
-genShip name Narn Military = shStandardLondo{ ship_name = name, ship_owner = 0  }
+genShip n r c = (fetchShip r c){ ship_name = n
+                               , ship_owner = 0
+                               , ship_ai = SAIPlayer
+                               }
+                               
 
 startingMoney :: Race -> Career -> Int
 startingMoney Human Merchant = 2000

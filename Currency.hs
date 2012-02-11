@@ -6,12 +6,12 @@ defaultMoney :: Int
 defaultMoney = 300000
 
 class MoneyOps a where
-    addMoney :: a -> Amount -> a
-    removeMoney :: a -> Amount -> a
-    enoughMoney :: a -> Amount -> Bool
-    mbRemoveMoney :: a -> Amount -> Maybe a
+    addMoney :: Amount -> a -> a
+    removeMoney :: Amount -> a -> a
+    enoughMoney :: Amount -> a -> Bool
+    mbRemoveMoney :: Amount -> a -> Maybe a
 
-    removeMoney obj a = addMoney obj (-a)
-    mbRemoveMoney obj a = 
-        if (enoughMoney obj a) then Just $ removeMoney obj a
+    removeMoney a obj = addMoney (-a) obj
+    mbRemoveMoney a obj = 
+        if (enoughMoney a obj) then Just $ removeMoney a obj
                                else Nothing

@@ -17,7 +17,7 @@ data Owner = Owner
 ownerOne :: Owner
 ownerOne = Owner "Helen Ripley" [] [] defaultPersonalInfo 1000
 
-defaultOwners = fromList $ zip [0..] [ownerOne]
+defaultOwners = fromList $ zip [1..] [ownerOne]
 
 defaultPersonalInfo = Person Human Military
 
@@ -29,5 +29,5 @@ data PersonalInfo = Corporation { pi_corp_awesomeness :: Int
     deriving (Eq, Show)
 
 instance MoneyOps Owner where
-    addMoney o@Owner{ owner_money = om } m = o{ owner_money = om + m}
-    enoughMoney o@Owner{ owner_money = om } m = om >= m
+    addMoney m o@Owner{ owner_money = om } = o{ owner_money = om + m}
+    enoughMoney m o@Owner{ owner_money = om } = om >= m

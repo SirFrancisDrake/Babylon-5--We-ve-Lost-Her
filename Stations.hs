@@ -1,6 +1,10 @@
+
+{-# LANGUAGE FlexibleInstances #-}
+
 module Stations where
 
 import Control.Concurrent.STM
+import Data.Function (on)
 import Data.IntMap
 
 import Currency
@@ -22,6 +26,9 @@ data Station = Station
     , station_cargoChangers :: [(Station -> Station)] -- natural income
     }                                                 -- and production
     deriving (Show)
+
+instance Eq Station where
+    (==) = on (==) station_name
 
 citadelStation :: Station
 citadelStation = Station "Citadel station" 
@@ -54,11 +61,14 @@ exchangeWareTimesStation wc ac wp ap t st =
 defaultStations :: IntMap Station
 defaultStations = fromList $ zip [0..] [citadelStation, solarisOne]
 
+station_wareCost :: Station -> Ware -> Int
+station_wareCost st w = 30
+
 instance WareOps Station where
-    addWare st@Station{ station_cargo = cargo } w a = st{ station_cargo = addWare cargo w a}
-    enoughWare st@Station{ station_cargo = cargo } w a = enoughWare cargo w a
-    checkWare st@Station{ station_cargo = cargo } w = checkWare cargo w
+    addWare w a st@Station{ station_cargo = cargo } = st{ station_cargo = addWare w a cargo}
+    enoughWare w a st@Station{ station_cargo = cargo } = enoughWare w a cargo
+    checkWare w st@Station{ station_cargo = cargo } = checkWare w cargo
 
 instance MoneyOps Station where
-    addMoney st@Station{ station_money = m } amount = st{ station_money = m + amount }
-    enoughMoney st@Station{ station_money = m } amount = m >= amount
+    addMoney amount st@Station{ station_money = m } = st{ station_money = m + amount }
+    enoughMoney amount st@Station{ station_money = m } = m >= amount

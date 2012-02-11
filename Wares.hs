@@ -1,6 +1,8 @@
 module Wares where
 
+import Data.Char (toLower)
 import Data.List (foldl')
+import Data.Monoid
 
 import StringFunctions
 import Wrappers
@@ -49,7 +51,7 @@ defaultCargo = Cargo
 makeCargo :: [(Ware, Amount)] -> Cargo
 makeCargo pairs =
     let fns = map ( \(w,a) -> 
-                        \t -> addWare t w a) 
+                        \t -> addWare w a t) 
                   pairs
     in (foldl' (.) id fns) defaultCargo
 
@@ -57,7 +59,7 @@ caprica = makeCargo [(Fuel, 30), (Supplies, 10)]
 
 exchangeWare :: Cargo -> Ware -> Amount -> Ware -> Amount -> Cargo
 exchangeWare c wc ac wp ap =
-    if enoughWare c wc ac then (removeWare (addWare c wp ap) wc ac)
+    if enoughWare wc ac c then (removeWare wc ac (addWare wp ap c))
                           else c
 
 exchangeWareTimes :: Cargo -> Ware -> Amount -> Ware -> Amount -> Int -> Cargo
@@ -66,29 +68,48 @@ exchangeWareTimes c wc ac wp ap t = exchangeWareTimes (exchangeWare c wc ac wp a
 -- This is totally not elegant and inefficient FIXME
 -- need it to let factories work with half their capacity and so on
 
+instance Weighable Cargo where
+    weight (Cargo c) = foldl' (\acc (w,a) -> 
+                                weight w * fromIntegral a + acc) 
+                              0 
+                              c
+
+instance Weighable Ware where
+    weight w
+        | w == Fuel         = 0.3
+        | w == Books        = 0.5
+        | w == Energy       = 0.1
+        | w == Food         = 0.24
+        | w == Supplies     = 0.4
+        | w == CyberModules = 0.05
+        | w == Silicium     = 1
+
+class Weighable a where
+    weight :: a -> Weight
+
 instance WareOps Cargo where
-    addWare (Cargo ws) ware amount =
+    addWare ware amount (Cargo ws) =
         let fn = \acc (w,a) -> if (w == ware) then acc ++ [(w,a+amount)]
                                               else acc ++ [(w,a)]
         in Cargo $ foldl' fn [] ws
-    enoughWare (Cargo ws) ware amount =
+    enoughWare ware amount (Cargo ws) =
         let fn = \acc (w,a) -> if ((w == ware) && (a >= amount)) then True
                                                                  else acc
         in foldl' fn False ws
-    checkWare (Cargo ws) ware =
+    checkWare ware (Cargo ws) =
         let fn = \acc (w,a) -> if (w == ware) then a
                                               else acc
         in foldl' fn (-1) ws
 
 class WareOps a where
-    addWare :: a -> Ware -> Amount -> a
-    checkWare :: a -> Ware -> Amount
-    removeWare :: a -> Ware -> Amount -> a
-    enoughWare :: a -> Ware -> Amount -> Bool
-    mbRemoveWare :: a -> Ware -> Amount -> Maybe a
+    addWare :: Ware -> Amount -> a -> a
+    checkWare :: Ware -> a -> Amount
+    removeWare :: Ware -> Amount -> a -> a
+    enoughWare :: Ware -> Amount -> a -> Bool
+    mbRemoveWare :: Ware -> Amount -> a -> Maybe a
 
-    removeWare obj w a = addWare obj w (-a)
-    mbRemoveWare obj w a = 
-        if (enoughWare obj w a) then Just $ removeWare obj w a
+    removeWare w a obj = addWare w (-a) obj
+    mbRemoveWare w a obj = 
+        if (enoughWare w a obj) then Just $ removeWare w a obj
                                 else Nothing
 
