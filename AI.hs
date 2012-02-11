@@ -24,5 +24,7 @@ defSupplyAI bid sid w a = ShipAI (SGo bid)
                                  , (SSell w a)
                                  ]
 
+defaultAI = SAINone
+
 next :: ShipAI -> ShipAI
 next (ShipAI c (x:xs)) = ShipAI x (xs ++ [c])

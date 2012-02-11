@@ -54,7 +54,7 @@ fetchShip Narn Military = shStandardLondo
 genShip :: ShipName -> Race -> Career -> Ship
 genShip n r c = (fetchShip r c){ ship_name = n
                                , ship_owner = 0
-                               , ship_ai = SAIPlayer
+                               , ship_AI = SAIPlayer
                                }
                                
 

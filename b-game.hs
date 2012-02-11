@@ -4,6 +4,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 
 import StartingInput
+import Interface
 import World
 
 main = do
@@ -11,6 +12,8 @@ main = do
     newWorld <- makeNewWorld own shi
     stopLock <- newTVarIO False
     forkedID <- forkIO $ gameCycleIO newWorld stopLock
-    playerCycle
+    playerCycle newWorld
+    atomically $ writeTVar stopLock True
 
-playerCycle = undefined
+playerCycle :: World -> IO ()
+playerCycle = interfaceCycle

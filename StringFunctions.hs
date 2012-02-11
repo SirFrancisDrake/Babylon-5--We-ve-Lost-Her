@@ -14,7 +14,8 @@ class Recognize a where
 --                          Just "merchant" -> Just Merchant
 --                          otherwise -> Nothing
 
-exhaustive :: (Eq a) => [a] -> [[a]] -> Maybe [a]
-exhaustive pattern patterns = let patternList = filter (\pt -> pattern `elem` (inits pt)) patterns
+exhaustive :: String -> [String] -> Maybe String
+exhaustive "" _ = Nothing
+exhaustive pattern patterns = let patternList = filter (\pt -> (head $ words pattern) `elem` (inits pt)) patterns
                               in if (length patternList == 1) then Just $ head patternList
                                                               else Nothing

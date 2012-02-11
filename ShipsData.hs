@@ -1,67 +1,52 @@
 module ShipsData where
 
+import AI
 import Navigation
 import Owners
 import Ships
 import Wares
 import Wrappers
 
+shipsDataDefShip = Ship "empty name"
+                        Rhino 
+                        (shipStats Rhino) 
+                        defaultNavModule 
+                        defaultAI 
+                        defaultCargo 
+                        defaultOwner
+
 shStandardRhino :: Ship
 shStandardRhino = let thisShipStats = shipStats Rhino
-                  in Ship   "empty name"
-                            Rhino 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+                  in shipsDataDefShip{ ship_class = Rhino
+                                     , ship_stats = thisShipStats
+                                     }
 
 shStandardLiandra :: Ship
-shStandardLiandra = let thisShipStats = shipStats Clark
-                  in Ship   "empty name"
-                            Liandra 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+shStandardLiandra = let thisShipStats = shipStats Liandra
+                  in shipsDataDefShip{ ship_class = Liandra
+                                     , ship_stats = thisShipStats
+                                     }
                         
 shStandardClark :: Ship
 shStandardClark = let thisShipStats = shipStats Clark
-                  in Ship   "empty name"
-                            Clark 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+                  in shipsDataDefShip{ ship_class = Clark
+                                     , ship_stats = thisShipStats
+                                     }
 
 shStandardLondo :: Ship
 shStandardLondo = let thisShipStats = shipStats Londo
-                  in Ship   "empty name"
-                            Londo 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+                  in shipsDataDefShip{ ship_class = Londo
+                                     , ship_stats = thisShipStats
+                                     }
                         
 shStandardGQuan :: Ship
 shStandardGQuan = let thisShipStats = shipStats GQuan
-                  in Ship   "empty name"
-                            GQuan 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+                  in shipsDataDefShip{ ship_class = GQuan
+                                     , ship_stats = thisShipStats
+                                     }
                         
 shStandardHel :: Ship
 shStandardHel = let thisShipStats = shipStats Hel
-                  in Ship   "empty name"
-                            Hel 
-                            thisShipStats 
-                            defaultNavModule 
-                            defaultCargo 
-                            defaultOwner
-                            defaultAI
+                  in shipsDataDefShip{ ship_class = Hel
+                                     , ship_stats = thisShipStats
+                                     }

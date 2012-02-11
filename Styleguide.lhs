@@ -1,11 +1,15 @@
+> import Data.IntMap
+> import Prelude hiding (map, filter)
+
 1. Lambda > flip
 example:
 We want to run function `process` on a subset of IntMap's elements.
 Suppose the we know that subset by the list of its keys.
 
 > -- process :: Int -> IntMap a -> a
-> ex1  = map (\k -> process k intMap) keyList
-> ex1' = map (flip process intMap) keyList
+> process = undefined
+> ex1  intMap keyList = map (\k -> process k intMap) keyList
+> ex1' intMap keyList = map (flip process intMap) keyList
 
 Rewriting `process` fn to take args in different order is also possible,
 but not always desirable. 
