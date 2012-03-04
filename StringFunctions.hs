@@ -1,6 +1,7 @@
 module StringFunctions where
 
-import Data.List (inits)
+import Data.List (inits, intersperse)
+import Control.Monad (join)
 
 class Recognize a where
     recognize :: String -> Maybe a
@@ -19,3 +20,6 @@ exhaustive "" _ = Nothing
 exhaustive pattern patterns = let patternList = filter (\pt -> (head $ words pattern) `elem` (inits pt)) patterns
                               in if (length patternList == 1) then Just $ head patternList
                                                               else Nothing
+
+concatWithSpaces :: [String] -> String
+concatWithSpaces ss = join $ intersperse " " ss

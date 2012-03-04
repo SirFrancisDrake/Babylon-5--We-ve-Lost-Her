@@ -27,6 +27,9 @@ data Station = Station
     }                                                 -- and production
     deriving (Show)
 
+station_guestShow :: Station -> String
+station_guestShow st = "Station " ++ station_name st ++ "\n" ++ show (station_cargo st)
+
 instance Eq Station where
     (==) = on (==) station_name
 

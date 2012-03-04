@@ -1,12 +1,13 @@
 module StartingInput (
-    getStartingInput
+    debStartingInput
+  , getStartingInput
   , StartingInput
   , Career
   , Race)
   where
 
 import Control.Applicative ((<$>))
-import Data.Char (toLower)
+import Data.Char (isAlpha, isSpace, toLower)
 import Data.Maybe (fromJust, isJust)
 
 import AI
@@ -15,9 +16,13 @@ import Ships
 import ShipsData
 import StringFunctions
 import Owners
+import VariousFns
+
+debStartingInput :: IO StartingInput -- FIXME remove this debug fn when Interface is fully tested
+debStartingInput = return $ genStartingInput "Delen" Minbari Merchant "Liandra"
 
 getStartingInput :: IO StartingInput
-getStartingInput = do putStrLn "Greetings. You're about to play Babylon 5: Parting Ways\n"
+getStartingInput = do putStrLn "Greetings. You're about to play Babylon 5: We've Lost Her\n"
                       putStr "Please, type in the name of your character: "
                       charName <- getValidInput get_charName
                       putStr "Please, choose your race. The choice is: Human, Minbari or Narn: "
@@ -90,15 +95,24 @@ getValidInput :: (Eq a) => (String -> Maybe a) -> IO a
 getValidInput fn = do
     input <- fn <$> getLine
     if isJust input then return $ fromJust input
-                    else putStr "You seem to be a turtle. Try again: " >> getValidInput fn
+                    else putStr "You seem to be a turtle. Try again: " >> 
+                         getValidInput fn
+
+validName :: String -> Bool
+validName s = flip matchAllPredicates s
+    [ mapMatchAnyPredicates [isAlpha -- all symbols are either letters
+                            , isSpace -- , or spaces
+                            , flip elem "-'"] -- or dashes and apostrophes
+    , \t -> length (words t) <= 3 -- no more than 3 words
+    ] -- FIXME for not too many non-letter symbols and first letters capitalized 
 
 get_charName :: String -> Maybe CharName
-get_charName s = if (length s /= 0) then Just s
-                                    else Nothing
+get_charName s = if validName s then Just s
+                                else Nothing
 
 get_shipName :: String -> Maybe ShipName
-get_shipName s = if (length s /= 0) then Just s
-                                    else Nothing
+get_shipName s = if validName s then Just s
+                                else Nothing
 
 get_race :: String -> Maybe Race
 get_race = recognize

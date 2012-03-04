@@ -8,7 +8,7 @@ import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
 import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes once
 import Data.List (foldl') -- non-alphabetical so that I could write the above comment
-import System.Posix (sleep)
+import System.Posix (sleep) -- first non-cross-platform line in the code
 
 import AI
 import Currency
