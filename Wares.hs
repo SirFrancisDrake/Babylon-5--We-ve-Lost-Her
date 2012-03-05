@@ -7,8 +7,19 @@ import Data.Monoid
 import StringFunctions
 import Wrappers
 
-data Ware = Books | Energy | Fuel | Food | Supplies | CyberModules | Silicium
+data Ware = Books | CyberModules | Energy | Food | Fuel | Silicium | Supplies
     deriving (Enum, Eq, Show, Ord)
+
+wareNames = map show [Books .. Supplies]
+
+standardPrice :: Ware -> Money
+standardPrice Books = 10
+standardPrice CyberModules = 300
+standardPrice Energy = 7
+standardPrice Food = 15
+standardPrice Fuel = 14
+standardPrice Silicium = 90
+standardPrice Supplies = 20
 
 instance Recognize Ware where
     recognize w = let patterns = [ "books"
@@ -54,6 +65,9 @@ makeCargo pairs =
                         \t -> addWare w a t) 
                   pairs
     in (foldl' (.) id fns) defaultCargo
+
+fromCargo :: Cargo -> [(Ware, Amount)]
+fromCargo (Cargo ws) = ws
 
 caprica = makeCargo [(Fuel, 30), (Supplies, 10)]
 

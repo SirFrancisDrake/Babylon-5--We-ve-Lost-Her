@@ -12,6 +12,11 @@ type ShipID = Int
 -- Stations.hs
 type StationID = Int
 
+-- Stock.hs
+type BuyPrice = Money
+type SellPrice = Money
+type DesiredAmount = Amount
+
 -- Wares.hs
 type Amount = Int
 type Cost = Int

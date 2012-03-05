@@ -2,10 +2,10 @@ module Interface where
 
 import Control.Concurrent.STM
 import Data.Char (toLower)
-import Data.List (sort)
 import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)
 
+import InterfaceShow
 import Ships
 import Stations
 import StringFunctions
@@ -19,7 +19,10 @@ data UserCommand = UCGoTo StationID
                  | UCStationInfo
                  | UCCharacterInfo
                  | UCUndock
+                 | UCNavigation
                  | UCList
+                 | UCTrade
+                 | UCBack
               -- | UCSave
                  | UCExit
     deriving ()
@@ -32,20 +35,17 @@ instance Show UserCommand where
     show UCList = "list station cargo"
     show UCExit = "exit"
 
-class ContextualShow a where
-    contextShow :: Context -> a -> String
-    contextShowList :: Context -> [a] -> String
-    contextShowList c = concatWithSpaces . sort . map (contextShow c)
-
 instance ContextualShow UserCommand where
-    contextShow c (UCGoTo i) = "go"
-    contextShow c (UCSell w a) = "sell"
-    contextShow c (UCBuy w a) = "buy"
-    contextShow c UCUndock = "undock"
-    contextShow c UCList = "list"
-    contextShow c UCExit = "exit"
-    contextShow c UCStationInfo = "info"
-    contextShow c UCCharacterInfo = "char"
+    contextShow (c, _) UCBack = "back"
+    contextShow (c, _) UCTrade = "trade"
+    contextShow (c, _) (UCGoTo i) = "go"
+    contextShow (c, _) (UCSell w a) = "sell"
+    contextShow (c, _) (UCBuy w a) = "buy"
+    contextShow (c, _) UCUndock = "undock"
+    contextShow (c, _) UCList = "list"
+    contextShow (c, _) UCExit = "exit"
+    contextShow (c, _) UCStationInfo = "info"
+    contextShow (c, _) UCCharacterInfo = "char"
 
 instance Eq UserCommand where
     (==) (UCGoTo _) (UCGoTo _) = True
@@ -108,15 +108,15 @@ recognizeBuy (_:w:a:[]) = let w1 = recognize w :: Maybe Ware
                                                                     else Nothing
 recognizeBuy _ = Nothing
 
-data Context = ContextSpace
-             | ContextStation StationID
-             | ContextShip ShipID
-    deriving (Eq,Show)
-
-printContext :: Context -> IO ()
-printContext ContextSpace = putStrLn "You're in open space."
-printContext (ContextStation stid) = putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
-printContext (ContextShip shid) = putStrLn $ "You're on a ship with ID " ++ show shid -- FIXME
+printContext :: InterfaceState -> IO ()
+printContext (ContextSpace, ScreenNavigation) = 
+    putStrLn "You're in open space."
+printContext ((ContextStationGuest stid), ScreenNavigation) = 
+    putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
+printContext ((ContextStationOwner stid), ScreenNavigation) = 
+    putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
+printContext ((ContextShipGuest shid), ScreenNavigation) = 
+    putStrLn $ "You're on a ship with ID " ++ show shid -- FIXME
 
 data UserResult = URSuccess
                 | URFailure
@@ -137,84 +137,100 @@ getValidCommand ucs = do
         else putStrLn "Nah, wrong way, sorry. Try again\n"
              >> getValidCommand ucs
 
-chooseAvailibleCommands :: Context -> [UserCommand]
-chooseAvailibleCommands ContextSpace =
-    [ UCGoTo 0
-    , UCList
+chooseAvailibleCommands :: InterfaceState -> [UserCommand]
+chooseAvailibleCommands (ContextSpace, ScreenNavigation) =
+    [ UCCharacterInfo
     , UCExit
-    , UCCharacterInfo
+    , UCGoTo 0
     ]
-chooseAvailibleCommands (ContextStation st) =
-    [ UCUndock
-    , UCBuy Fuel 1
-    , UCSell Fuel 1
-    , UCList
+chooseAvailibleCommands ((ContextStationGuest st), ScreenMain) =
+    [ UCCharacterInfo
+    , UCExit
+    , UCNavigation
     , UCStationInfo
+    , UCTrade
+    ]
+chooseAvailibleCommands ((ContextStationGuest st), ScreenNavigation) =
+    [ UCBack
     , UCCharacterInfo
     , UCExit
+    , UCStationInfo
+    , UCUndock
     ]
-chooseAvailibleCommands (ContextShip sh) =
-    [ UCUndock
+chooseAvailibleCommands ((ContextStationGuest st), ScreenTrade) =
+    [ UCBack
+    , UCBuy Fuel 1
+    , UCCharacterInfo
     , UCExit
+    , UCList
+    , UCSell Fuel 1
+    , UCStationInfo
     ]
+chooseAvailibleCommands _ = undefined
 
-printAvailibleCommands :: [UserCommand] -> Context -> IO ()
-printAvailibleCommands ucs c = 
-    putStrLn $ "You can do something of the following: " ++ (contextShowList c ucs)
+printAvailibleCommands :: [UserCommand] -> InterfaceState -> IO ()
+printAvailibleCommands ucs istate = 
+    putStrLn $ "You can do something of the following: " ++ (contextShowList istate ucs)
 
-getUserCommand :: Context -> IO (UserCommand, Bool)
-getUserCommand c = do
-    let cmds = chooseAvailibleCommands c
-    printContext c
-    printAvailibleCommands cmds c
+getUserCommand :: InterfaceState -> IO (UserCommand, Bool)
+getUserCommand istate = do
+    let cmds = chooseAvailibleCommands istate
+    printContext istate
+    printAvailibleCommands cmds istate
     cmd <- getValidCommand cmds
     if cmd == UCExit then return (cmd, True)
                      else return (cmd, False)
 
-executeUserCommand :: UserCommand -> World -> IO (UserResult)
-executeUserCommand UCStationInfo w = do
-    let ships = world_ships w    
-    stid <- readTVarIO ships >>= \i -> readTVarIO (i ! 0) >>= \j ->
-       return $ dockedStID j 
-    let stations = world_stations w
-    st <- readTVarIO stations >>= \i -> readTVarIO (i ! stid)
-    return $ URAnswer (station_guestShow st)
-executeUserCommand _ _ = undefined
+executeUserCommand :: UserCommand -> InterfaceState -> World -> IO (UserResult, InterfaceState)
+executeUserCommand UCStationInfo istate w = do
+    stid <- (world_ships w) !!! 0 >>= return . dockedStID
+    st <- (world_stations w) !!! stid
+    return (URAnswer (station_guestShow st), istate)
+
+executeUserCommand UCCharacterInfo istate w = do
+    stid <- (world_ships w) !!! 0 >>= return . dockedStID
+    st <- (world_stations w) !!! stid
+    return (URAnswer (station_guestShow st), istate)
+
+executeUserCommand UCList istate@(ContextStationGuest stid, ScreenTrade) w = do
+   st <- (world_stations w) !!! stid
+   return (URAnswer (show $ station_stock st), istate)
+
+executeUserCommand UCExit istate _ = return (URSuccess, istate)
+executeUserCommand _ _ _ = undefined
 
 showResult :: UserResult -> IO ()
 showResult = print
 
-showSituation :: World -> IO ()
-showSituation w = do
-    ownerShip <- readTVarIO (world_ships w) >>= \i -> return (i ! 0) >>= readTVarIO
+getOwnerShip :: World -> IO Ship
+getOwnerShip w = (world_ships w) !!! 0 -- FIXME when needed
+
+showSituation :: World -> InterfaceState -> IO ()
+showSituation w istate = do
+    ownerShip <- getOwnerShip w
     let nm = ship_navModule ownerShip
     let np = navModule_position nm
     case np of
-        (DockedToStation stid) -> readTVarIO (world_stations w) >>= \i ->
-                                    return (i ! stid) >>=
-                                    readTVarIO >>= putStrLn . station_guestShow
-        (DockedToShip shid) -> readTVarIO (world_stations w) >>= \i ->
-                                   return (i ! shid) >>= readTVarIO >>=
-                                   print
+        (DockedToStation stid) -> (world_stations w) !!! stid >>= 
+                                                putStrLn . station_guestShow
+        (DockedToShip shid) -> (world_ships w) !!! shid >>= print
         (SNPSpace pos) -> print pos
 
 deviseContext :: World -> IO Context
 deviseContext w = do
-    ownerShip <- readTVarIO (world_ships w) >>= \i -> return (i ! 0) >>= readTVarIO
+    ownerShip <- getOwnerShip w
     let nm = ship_navModule ownerShip
     let np = navModule_position nm
     case np of
-        (DockedToStation stid) -> return $ ContextStation stid
-        (DockedToShip shid) -> return $ ContextShip shid
+        (DockedToStation stid) -> return $ ContextStationGuest stid
+        (DockedToShip shid) -> return $ ContextShipGuest shid
         (SNPSpace pos) -> return $ ContextSpace
     
-interfaceCycle :: World -> IO ()
-interfaceCycle world = do
-    showSituation world
-    context <- deviseContext world
-    (command, ifStop) <- getUserCommand context
-    result <- executeUserCommand command world
+interfaceCycle :: World -> InterfaceState -> IO ()
+interfaceCycle world istate = do
+    showSituation world istate
+    (command, ifStop) <- getUserCommand istate
+    (result, newIstate) <- executeUserCommand command istate world
     showResult result
-    showSituation world
-    if not ifStop then interfaceCycle world
+    if not ifStop then interfaceCycle world newIstate
                   else return ()

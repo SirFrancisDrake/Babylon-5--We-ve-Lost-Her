@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 
 import StartingInput
 import Interface
+import InterfaceShow
 import World
 
 main = do
@@ -16,4 +17,4 @@ main = do
     atomically $ writeTVar stopLock True
 
 playerCycle :: World -> IO ()
-playerCycle = interfaceCycle
+playerCycle w = interfaceCycle w startingIState

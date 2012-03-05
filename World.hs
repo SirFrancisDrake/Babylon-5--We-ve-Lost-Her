@@ -18,6 +18,7 @@ import Navigation
 import Owners
 import Ships hiding (Ships(..))
 import Stations hiding (Stations(..))
+import StationsData
 import Transactions
 import qualified Vector as V
 import Wares
@@ -94,6 +95,9 @@ gameCycleIO w lock = runReaderT (gameCycle lock) w
 
 -- SECTION BREAK
 -- [GLOBTVAR] -- see section description in the contents above
+
+(!!!) :: TVar (IntMap (TVar a)) -> Int -> IO a
+(!!!) tas i = readTVarIO tas >>= \imap -> readTVarIO (imap ! i)
 
 modifyGlobalTVar :: (IntMap a -> IntMap a) -> TVar (IntMap a) -> IO ()
 modifyGlobalTVar fn tas = atomically $
