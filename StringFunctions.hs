@@ -22,4 +22,7 @@ exhaustive pattern patterns = let patternList = filter (\pt -> (head $ words pat
                                                               else Nothing
 
 concatWithSpaces :: [String] -> String
-concatWithSpaces ss = join $ intersperse " " ss
+concatWithSpaces ss = concatWith " " ss
+
+concatWith :: String -> [String] -> String
+concatWith i ss = join $ intersperse i ss

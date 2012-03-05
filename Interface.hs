@@ -36,17 +36,19 @@ instance Show UserCommand where
     show UCExit = "exit"
 
 instance ContextualShow UserCommand where
-    contextShow (c, _) UCBack = "back"
-    contextShow (c, _) (UCBuy w a) = "buy"
-    contextShow (c, _) UCCharacterInfo = "char"
-    contextShow (c, _) UCExit = "exit"
-    contextShow (c, _) (UCGoTo i) = "go"
-    contextShow (c, _) UCList = "list"
-    contextShow (c, _) UCNavigation = "navigation"
-    contextShow (c, _) (UCSell w a) = "sell"
-    contextShow (c, _) UCStationInfo = "info"
-    contextShow (c, _) UCTrade = "trade"
-    contextShow (c, _) UCUndock = "undock"
+    contextShow (c, _) UCBack = "back (to main interface screen)"
+    contextShow (c, _) (UCBuy w a) = "buy (usage: `buy ware amount` or `buy amount ware`)"
+    contextShow (c, _) UCCharacterInfo = "char (show character info)"
+    contextShow (c, _) UCExit = "exit (the game)"
+    contextShow (c, _) (UCGoTo i) = "go (to a station, usage: `go stationID`)"
+    contextShow (c, _) UCList = "list (stock of the station or ship's cargo)"
+    contextShow (c, _) UCNavigation = "navigation (go to navigation screen)"
+    contextShow (c, _) (UCSell w a) = "sell (see buy)"
+    contextShow (c, _) UCStationInfo = "info (about the given object)"
+    contextShow (c, _) UCTrade = "trade (go to trade screen)"
+    contextShow (c, _) UCUndock = "undock (from the station)"
+    contextShowList i@(c, _) ts = "\n\t-> " ++ 
+                concatWith "\n\t-> " (map (contextShow i) ts)
 
 instance Eq UserCommand where
     (==) UCBack UCBack = True
@@ -193,7 +195,7 @@ chooseAvailibleCommands _ = undefined
 
 printAvailibleCommands :: [UserCommand] -> InterfaceState -> IO ()
 printAvailibleCommands ucs istate = 
-    putStrLn $ "\nYou can do something of the following: " ++ (contextShowList istate ucs)
+    putStrLn $ "You can do something of the following: " ++ (contextShowList istate ucs)
 
 getUserCommand :: InterfaceState -> IO (UserCommand, Bool)
 getUserCommand istate = do
@@ -201,6 +203,7 @@ getUserCommand istate = do
     printContext istate
     printAvailibleCommands cmds istate
     cmd <- getValidCommand cmds
+    putStrLn $ contextShow istate cmd
     if cmd == UCExit then return (cmd, True)
                      else return (cmd, False)
 
@@ -208,7 +211,7 @@ executeUserCommand :: UserCommand -> InterfaceState -> World -> IO (UserResult, 
 executeUserCommand UCStationInfo istate w = do
     stid <- (world_ships w) !!! 0 >>= return . dockedStID
     st <- (world_stations w) !!! stid
-    return (URAnswer (station_guestShow st), istate)
+    return (URAnswer (contextShow istate st), istate)
 
 executeUserCommand UCCharacterInfo istate w = do
     o <- (world_owners w) !!! 0
@@ -218,11 +221,45 @@ executeUserCommand UCList istate@(ContextStationGuest stid, ScreenTrade) w = do
    st <- (world_stations w) !!! stid
    return (URAnswer (show $ station_stock st), istate)
 
+executeUserCommand UCUndock istate@(ContextStationGuest stid, ScreenNavigation) w = do
+   tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
+   shid <- getOwnerShipID w
+   tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
+   atomically $ undockShSt tsh shid tst stid
+   return (URSuccess, (ContextSpace, ScreenNavigation))
+
+executeUserCommand UCUndock istate@(ContextStationOwner stid, ScreenNavigation) w = do
+   tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
+   shid <- getOwnerShipID w
+   tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
+   atomically $ undockShSt tsh shid tst stid
+   return (URSuccess, (ContextSpace, ScreenNavigation))
+
 executeUserCommand UCExit istate _ = return (URSuccess, istate)
 executeUserCommand UCBack istate _ = return (URSuccess, interface_back istate)
-executeUserCommand UCTrade istate _ = return (URSuccess, interface_trade istate)
+executeUserCommand UCTrade istate@(ContextStationGuest stid, _) w = do
+   st <- (world_stations w) !!! stid
+   return (URAnswer (show $ station_stock st), interface_trade istate)
+
 executeUserCommand UCNavigation istate _ = return (URSuccess, interface_navigation istate)
+
+executeUserCommand (UCBuy bw ba) istate@(ContextStationGuest stid, ScreenTrade) w = do
+    applyTradeFn canBuy buy stid w bw ba >>= \r -> return (r, istate)
+
+executeUserCommand (UCSell sw sa) istate@(ContextStationGuest stid, ScreenTrade) w = do
+    applyTradeFn canSell sell stid w sw sa >>= \r -> return (r, istate)
+
 executeUserCommand _ _ _ = undefined
+
+-- Try to write down type declaration of this one. The answer can be found in Styleguide.lhs
+applyTradeFn pred mod stid world w a = do
+    oid <- getOwnerID world
+    shid <- getOwnerShipID world
+    canDo <- pred oid shid stid world w a
+    if canDo then do mod oid shid stid world w a
+                     return URSuccess
+             else return URFailure
+
 
 showResult :: UserResult -> IO ()
 showResult = print
@@ -230,12 +267,18 @@ showResult = print
 getOwnerShip :: World -> IO Ship
 getOwnerShip w = (world_ships w) !!! 0 -- FIXME when needed
 
+getOwnerShipID :: World -> IO ShipID
+getOwnerShipID w = return 0 -- FIXME when needed
+
+getOwnerID :: World -> IO OwnerID
+getOwnerID _ = return 0 -- FIXME when needed
+
 showSituation :: World -> InterfaceState -> IO ()
 showSituation w istate = do
+    putStr "-- Status: "
     ownerShip <- getOwnerShip w
     let nm = ship_navModule ownerShip
     let np = navModule_position nm
-    putStrLn "\n"
     case np of
         (DockedToStation stid) -> putStrLn "You seem to be docked to a station. "
         (DockedToShip shid) -> (world_ships w) !!! shid >>= print
@@ -257,5 +300,6 @@ interfaceCycle world istate = do
     (command, ifStop) <- getUserCommand istate
     (result, newIstate) <- executeUserCommand command istate world
     showResult result
+    putStrLn ""
     if not ifStop then interfaceCycle world newIstate
                   else return ()

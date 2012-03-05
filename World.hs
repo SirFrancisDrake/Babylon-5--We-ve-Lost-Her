@@ -19,6 +19,7 @@ import Owners
 import Ships hiding (Ships(..))
 import Stations hiding (Stations(..))
 import StationsData
+import Stock
 import Transactions
 import qualified Vector as V
 import Wares
@@ -253,60 +254,85 @@ processAI ai@(ShipAI (SGo stid) ais) shid = do     -- type signature shows, care
                  else return ai
 processAI ai@(ShipAI (SBuy bw ba) ais) shid = do
     world <- ask
+    sh <- liftIO $ (world_ships world) !!! shid
+    let stid = dockedStID sh
+    let oid = ship_owner sh
 
-    ships <- liftIO $ readTVarIO $  world_ships world
-    let tsh = ships ! shid
-    sh <- liftIO $ readTVarIO tsh
-
-    stations <- liftIO $ readTVarIO $ world_stations world
-    let tst = stations ! (dockedStID sh)
-    st <- liftIO $ readTVarIO tst
-
-    owners <- liftIO $ readTVarIO $ world_owners world
-    let to = owners ! (ship_owner sh)
-    o <- liftIO $ readTVarIO to
-
-    let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
-    let enoughMoneyP = owner_money o >= station_wareCost st bw * fromIntegral ba
-    let enoughWareP = enoughWare bw ba st
-
-    if and [enoughSpaceP, enoughMoneyP, enoughWareP] 
-        then liftIO $ atomically $ do
-            stmRemoveWare bw ba tst
-            stmAddWare bw ba tsh
-            stmRemoveMoney (station_wareCost st bw * fromIntegral ba) to
-            stmAddMoney (station_wareCost st bw * fromIntegral ba) tst
-            return $ next ai
-        else return ai
+    cb <- liftIO $ canBuy oid shid stid world bw ba
+    if cb then do liftIO $ buy oid shid stid world bw ba
+                  return $ next ai
+          else return ai
 processAI ai@(ShipAI (SSell sw sa) ais) shid = do
     world <- ask
-
-    ships <- liftIO $ readTVarIO $  world_ships world
-    let tsh = ships ! shid
-    sh <- liftIO $ readTVarIO tsh
-
-    stations <- liftIO $ readTVarIO $ world_stations world
-    let tst = stations ! (dockedStID sh)
-    st <- liftIO $ readTVarIO tst
-
-    owners <- liftIO $ readTVarIO $ world_owners world
-    let to = owners ! (ship_owner sh)
-    o <- liftIO $ readTVarIO to
-
-    let enoughMoneyP = station_money st >= station_wareCost st sw * fromIntegral sa
+    sh <- liftIO $ (world_ships world) !!! shid
+    let stid = dockedStID sh
+    let oid = ship_owner sh
     let enoughWareP = enoughWare sw sa sh
 
-    if and [enoughMoneyP, enoughWareP] 
-        then liftIO $ atomically $ do
-            stmRemoveWare sw sa tsh
-            stmAddWare sw sa tst
-            stmRemoveMoney (station_wareCost st sw * fromIntegral sa) tst
-            stmAddMoney (station_wareCost st sw * fromIntegral sa) to
-            return $ next ai
-        else if enoughWareP then return $ next ai -- if AI doesn't have the cargo,
-                            else return ai -- it should move on to its next task
+    cs <- liftIO $ canSell oid shid stid world sw sa
+
+    if cs then do liftIO $ sell oid shid stid world sw sa
+                  return $ next ai
+          else if enoughWareP then return $ next ai -- if AI doesn't have the cargo,
+                              else return ai -- it should move on to its next task
                        -- otherwise it should wait for station to get enough money
 processAI _ _ = undefined
+
+canBuy :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO Bool
+canBuy oid shid stid w bw ba = do
+    sh <- (world_ships w) !!! shid
+    st <- (world_stations w) !!! stid
+    o <- (world_owners w) !!! oid
+
+    let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
+    let enoughMoneyP = owner_money o >= stockSellPrice st bw * fromIntegral ba
+    let enoughWareP = enoughWare bw ba st
+
+    return $ and [enoughSpaceP, enoughMoneyP, enoughWareP] 
+
+buy :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO ()
+buy oid shid stid w bw ba = do
+    st <- (world_stations w) !!! stid
+
+    tsh <- readTVarIO (world_ships w) >>= \i -> return $ i ! shid
+    tst <- readTVarIO (world_stations w) >>= \i -> return $ i ! stid
+    to <- readTVarIO (world_owners w) >>= \i ->  return $i ! oid
+
+    cb <- canBuy oid shid stid w bw ba
+
+    if cb then atomically $ do
+            stmRemoveWare bw ba tst
+            stmAddWare bw ba tsh
+            stmRemoveMoney (stockSellPrice st bw * fromIntegral ba) to
+            stmAddMoney (stockSellPrice st bw * fromIntegral ba) tst
+          else return ()
+
+canSell :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO Bool
+canSell oid shid stid w sw sa = do
+    sh <- (world_ships w) !!! shid
+    st <- (world_stations w) !!! stid
+
+    let enoughMoneyP = station_money st >= stockBuyPrice st sw * fromIntegral sa
+    let enoughWareP = enoughWare sw sa sh
+
+    return $ and [enoughMoneyP, enoughWareP] 
+
+sell :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO ()
+sell oid shid stid w sw sa = do
+    st <- (world_stations w) !!! stid
+
+    tsh <- readTVarIO (world_ships w) >>= \i -> return $ i ! shid
+    tst <- readTVarIO (world_stations w) >>= \i -> return $ i ! stid
+    to <- readTVarIO (world_owners w) >>= \i ->  return $i ! oid
+
+    cs <- canSell oid shid stid w sw sa
+
+    if cs then atomically $ do
+            stmRemoveWare sw sa tsh
+            stmAddWare sw sa tst
+            stmRemoveMoney (stockBuyPrice st sw * fromIntegral sa) tst
+            stmAddMoney (stockBuyPrice st sw * fromIntegral sa) to
+          else return ()
 
 -- Following 2 fns are named counter-intuitive, since only one is invasive
 -- still, I think their return types go well with their names

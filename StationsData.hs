@@ -16,10 +16,15 @@ defaultStations = fromList $ zip [0..] [citadelStation, solarisOne]
 citadelStation :: Station
 citadelStation = Station "Citadel station" 
                          (Space (V.fromList [0,0,0]) Normalspace)
-                         defaultStock 
+                         (makeStock [ (Fuel,10,0,0,30)
+                                    , (Books,20,0,0,15)
+                                    , (CyberModules,300,0,0,270)
+                                    , (Silicium,1,0,0,400)
+                                    ])
                          defaultMoney 
                          [] 
                          "TriOptimum Corp."
+                         "The first stellar station to be operated by artificial intelligence. The AI named Shodan maintains most of the automated systems and onboard droids. This is the center of cutting edge research in modern weaponry, computers and molecular biology."
                          []
 
 solarisOne :: Station
@@ -29,4 +34,5 @@ solarisOne = Station "Solaris research station"
                      defaultMoney 
                      [] 
                      "Gibarian Inc."
+                     "Solaris research station is located in low orbit of planet Solaris, believed to be the only known planetary-sized alien life form. This is the center of solaris-related research and observations."
                      []

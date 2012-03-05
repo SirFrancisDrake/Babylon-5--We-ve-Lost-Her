@@ -45,5 +45,5 @@ interface_navigation (c, _) = (c, ScreenNavigation)
 class ContextualShow a where
     contextShow :: InterfaceState -> a -> String
     contextShowList :: InterfaceState -> [a] -> String
-    contextShowList istate = concatWithSpaces . sort . map (contextShow istate)
+    contextShowList istate = (concatWith "\n\t") . sort . map (contextShow istate)
 
