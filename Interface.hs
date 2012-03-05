@@ -1,3 +1,6 @@
+
+{-# LANGUAGE FlexibleInstances #-}
+
 module Interface where
 
 import Control.Concurrent.STM
@@ -14,122 +17,101 @@ import Wrappers
 import World
 
 data UserCommand = UCBack
-                 | UCBuy Ware Amount
+                 | UCBuy
                  | UCCharacterInfo
                  | UCExit
-                 | UCGoTo StationID
+                 | UCGoTo
                  | UCList
                  | UCNavigation
                  | UCStationInfo
-                 | UCSell Ware Amount
+                 | UCSell
                  | UCTrade
                  | UCUndock
               -- | UCSave
-    deriving ()
+    deriving (Show, Eq)
 
-instance Show UserCommand where
-    show (UCGoTo i) = "goto station " ++ show i
-    show (UCSell w a) = "sell " ++ show a ++ " units of " ++ show w
-    show (UCBuy w a) = "buy " ++ show a ++ " units of " ++ show w
-    show UCUndock = "undock"
-    show UCList = "list station cargo"
-    show UCExit = "exit"
+data UserCommandArgs = UCANone
+                     | UCATrade Ware Amount
+                     | UCAGoTo StationID
 
 instance ContextualShow UserCommand where
     contextShow (c, _) UCBack = "back (to main interface screen)"
-    contextShow (c, _) (UCBuy w a) = "buy (usage: `buy ware amount` or `buy amount ware`)"
+    contextShow (c, _) UCBuy = "buy (usage: `buy ware amount` or `buy amount ware`)"
     contextShow (c, _) UCCharacterInfo = "char (show character info)"
     contextShow (c, _) UCExit = "exit (the game)"
-    contextShow (c, _) (UCGoTo i) = "go (to a station, usage: `go stationID`)"
+    contextShow (c, _) UCGoTo = "go (to a station, usage: `go stationID`)"
     contextShow (c, _) UCList = "list (stock of the station or ship's cargo)"
     contextShow (c, _) UCNavigation = "navigation (go to navigation screen)"
-    contextShow (c, _) (UCSell w a) = "sell (see buy)"
-    contextShow (c, _) UCStationInfo = "info (about the given object)"
+    contextShow (c, _) UCSell = "sell (see buy)"
+    contextShow (c, _) UCStationInfo = "info (overview of the station)"
     contextShow (c, _) UCTrade = "trade (go to trade screen)"
     contextShow (c, _) UCUndock = "undock (from the station)"
     contextShowList i@(c, _) ts = "\n\t-> " ++ 
                 concatWith "\n\t-> " (map (contextShow i) ts)
 
-instance Eq UserCommand where
-    (==) UCBack UCBack = True
-    (==) (UCBuy _ _) (UCBuy _ _) = True
-    (==) UCCharacterInfo UCCharacterInfo = True
-    (==) UCExit UCExit = True
-    (==) (UCGoTo _) (UCGoTo _) = True
-    (==) UCList UCList = True
-    (==) UCNavigation UCNavigation = True
-    (==) UCStationInfo UCStationInfo = True
-    (==) (UCSell _ _) (UCSell _ _) = True
-    (==) UCTrade UCTrade = True
-    (==) UCUndock UCUndock = True
-    (==) _ _ = False
+instance ContextualShow UserCommandArgs where
+    contextShow _ UCANone = ""
+    contextShow _ (UCATrade w a) = show w ++ " " ++ show a
+    contextShow _ (UCAGoTo s) = show s
+
+instance ContextualShow (UserCommand, UserCommandArgs) where
+    contextShow c (uc,uca) = contextShow c uc ++ " " ++ contextShow c uca
 
 instance Recognize Int where
     recognize i = if filter (flip elem "1234567890") i == i then Just (read i)
                                                             else Nothing
 
-instance Recognize UserCommand where
-    recognize uc = let patterns = [ "back"
-                                  , "buy"
-                                  , "char"
-                                  , "exit"
-                                  , "go"
-                                  , "info"
-                                  , "list"
-                                  , "navigation"
-                                  , "sell"
-                                  , "trade"
-                                  , "undock"
-                                  , "quit"
-                                  ]
-                   in case exhaustive (map toLower uc) patterns of
-                       Just "back" -> Just UCBack
-                       Just "buy" -> recognizeBuy $ words uc
-                       Just "char" -> Just UCCharacterInfo
-                       Just "exit" -> Just UCExit
-                       Just "go" -> recognizeGo $ words uc
-                       Just "info" -> Just UCStationInfo
-                       Just "list" -> Just UCList
-                       Just "navigation" -> Just UCNavigation
-                       Just "sell" -> recognizeSell $ words uc
-                       Just "trade" -> Just UCTrade
-                       Just "undock" -> Just UCUndock
-                       Just "quit" -> Just UCExit
-                       otherwise -> Nothing
+frst (a,_,_) = a
+scnd (_,b,_) = b
+thrd (_,_,c) = c
 
-recognizeGo :: [String] -> Maybe UserCommand
-recognizeGo (g:i:[]) = if (isJust $ (recognize i :: Maybe Int)) 
-                            then Just $ UCGoTo (fromJust $ recognize i)
-                            else Nothing
-recognizeGo _ = Nothing
+ucRecognizeData :: [(UserCommand, String, String -> Maybe UserCommand -> Maybe (UserCommand,UserCommandArgs))]
+ucRecognizeData =
+    [ (UCBack, "back", noArgs)
+    , (UCBuy, "buy", recognizeTradeArgs . words)
+    , (UCCharacterInfo, "character", noArgs)
+    , (UCExit, "exit", noArgs)
+    , (UCGoTo, "go", recognizeGoArgs . words)
+    , (UCList, "list", noArgs)
+    , (UCNavigation, "navigation", noArgs)
+    , (UCSell, "sell", recognizeTradeArgs . words)
+    , (UCStationInfo, "info", noArgs)
+    , (UCTrade, "trade", noArgs)
+    , (UCUndock, "undock", noArgs)
+    ]
 
---      \ . /               | Rewrite those two when I get the chance
---       \|/                | that code is fucking terrible
---      --o--               | but "sell 10 fuel" and "sell fuel 10"
---        |                 | both work, which is very nice
---     kkk kkk            \ | /
---    0___0___0            \|/
-recognizeSell :: [String] -> Maybe UserCommand
-recognizeSell (_:w:a:[]) = let w1 = recognize w :: Maybe Ware
-                               a1 = recognize a :: Maybe Amount
-                               w2 = recognize a :: Maybe Ware
-                               a2 = recognize w :: Maybe Amount
-                           in if (isJust w1) && (isJust a1) then Just $ UCSell (fromJust w1) (fromJust a1)
-                                                            else if (isJust w2) && (isJust a2) 
-                                                                    then Just $ UCSell (fromJust w2) (fromJust a2)
-                                                                    else Nothing
-recognizeSell _ = Nothing
+smartRecognize :: String -> [UserCommand] -> Maybe (UserCommand, UserCommandArgs)
+smartRecognize str ucs =
+    let nucs = filter (\t -> frst t `elem` ucs) ucRecognizeData
+        nuc = exhaustive (map toLower str) (map scnd nucs)
+    in if isJust nuc then let (a,_,c) = head $ filter (\t -> scnd t == fromJust nuc) nucs
+                          in c str (Just a)
+                     else Nothing
 
-recognizeBuy :: [String] -> Maybe UserCommand
-recognizeBuy (_:w:a:[]) = let w1 = recognize w :: Maybe Ware
-                              a1 = recognize a :: Maybe Amount
-                              w2 = recognize a :: Maybe Ware
-                              a2 = recognize w :: Maybe Amount
-                           in if (isJust w1) && (isJust a1) then Just $ UCSell (fromJust w1) (fromJust a1)
-                                                            else if (isJust w2) && (isJust a2) 
-                                                                    then Just $ UCBuy (fromJust w2) (fromJust a2)
-                                                                    else Nothing
-recognizeBuy _ = Nothing
+noArgs :: String -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
+noArgs s j | (tail . words) s == [] = j >>= \i -> return (i,UCANone)
+           | otherwise = error "Interface: Arguments for that command should be empty."
+
+recognizeTradeArgs :: [String] -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
+recognizeTradeArgs (_:w:a:[]) muc = do
+    let w1 = recognize w :: Maybe Ware
+    let a1 = recognize a :: Maybe Amount
+    let w2 = recognize a :: Maybe Ware
+    let a2 = recognize w :: Maybe Amount
+    uc <- muc
+    if (isJust w1) && (isJust a1) then Just $ (uc, UCATrade (fromJust w1) (fromJust a1))
+                                else if (isJust w2) && (isJust a2) 
+                                        then Just $ (uc, UCATrade (fromJust w2) (fromJust a2))
+                                        else Nothing
+recognizeTradeArgs _ _ = error "Interface: Can't recognize trade arguments"
+
+recognizeGoArgs :: [String] -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
+recognizeGoArgs (g:i:[]) muc = do
+    uc <- muc
+    if (isJust $ (recognize i :: Maybe Int)) 
+        then Just $ (UCGoTo, UCAGoTo (fromJust $ recognize i))
+        else Nothing
+recognizeGo _ _ = error "Interface: Can't recognize go arguments"
 
 printContext :: InterfaceState -> IO ()
 printContext (ContextSpace, ScreenNavigation) = 
@@ -152,21 +134,20 @@ instance Show UserResult where
     show URFailure = "Unsuccessful."
     show (URAnswer s) = s
 
-getValidCommand :: [UserCommand] -> IO UserCommand
+getValidCommand :: [UserCommand] -> IO (UserCommand, UserCommandArgs)
 getValidCommand ucs = do
-    putStr "###> "
+    putStr "\n###> "
     comm <- getLine
-    let c = recognize comm
-    if (isJust c) && (fromJust c) `elem` ucs 
-        then return (fromJust c)
-        else putStrLn "Nah, wrong way, sorry. Try again\n"
-             >> getValidCommand ucs
+    let c = smartRecognize comm ucs
+    if (isJust c) then return (fromJust c)
+                  else putStrLn "Nah, wrong way, sorry. Try again\n"
+                       >> getValidCommand ucs
 
 chooseAvailibleCommands :: InterfaceState -> [UserCommand]
 chooseAvailibleCommands (ContextSpace, ScreenNavigation) =
     [ UCCharacterInfo
     , UCExit
-    , UCGoTo 0
+    , UCGoTo
     ]
 chooseAvailibleCommands ((ContextStationGuest st), ScreenMain) =
     [ UCCharacterInfo
@@ -184,12 +165,16 @@ chooseAvailibleCommands ((ContextStationGuest st), ScreenNavigation) =
     ]
 chooseAvailibleCommands ((ContextStationGuest st), ScreenTrade) =
     [ UCBack
-    , UCBuy Fuel 1
+    , UCBuy
     , UCCharacterInfo
     , UCExit
     , UCList
-    , UCSell Fuel 1
+    , UCSell
     , UCStationInfo
+    ]
+chooseAvailibleCommands (_, ScreenCharacter) =
+    [ UCBack
+    , UCExit
     ]
 chooseAvailibleCommands _ = undefined
 
@@ -197,56 +182,58 @@ printAvailibleCommands :: [UserCommand] -> InterfaceState -> IO ()
 printAvailibleCommands ucs istate = 
     putStrLn $ "You can do something of the following: " ++ (contextShowList istate ucs)
 
-getUserCommand :: InterfaceState -> IO (UserCommand, Bool)
+getUserCommand :: InterfaceState -> IO ((UserCommand, UserCommandArgs), Bool)
 getUserCommand istate = do
     let cmds = chooseAvailibleCommands istate
     printContext istate
     printAvailibleCommands cmds istate
     cmd <- getValidCommand cmds
     putStrLn $ contextShow istate cmd
-    if cmd == UCExit then return (cmd, True)
-                     else return (cmd, False)
+    if fst cmd == UCExit then return (cmd, True)
+                         else return (cmd, False)
 
-executeUserCommand :: UserCommand -> InterfaceState -> World -> IO (UserResult, InterfaceState)
-executeUserCommand UCStationInfo istate w = do
+executeUserCommand :: (UserCommand,UserCommandArgs) -> InterfaceState 
+                                -> World -> IO (UserResult, InterfaceState)
+executeUserCommand (UCStationInfo,_) istate w = do
     stid <- (world_ships w) !!! 0 >>= return . dockedStID
     st <- (world_stations w) !!! stid
     return (URAnswer (contextShow istate st), istate)
 
-executeUserCommand UCCharacterInfo istate w = do
+executeUserCommand (UCCharacterInfo,_) istate w = do
     o <- (world_owners w) !!! 0
-    return (URAnswer (show o), istate)
+    let nistate = interface_character istate
+    return (URAnswer (contextShow nistate o), nistate)
 
-executeUserCommand UCList istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) w = do
    st <- (world_stations w) !!! stid
    return (URAnswer (show $ station_stock st), istate)
 
-executeUserCommand UCUndock istate@(ContextStationGuest stid, ScreenNavigation) w = do
+executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) w = do
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
    shid <- getOwnerShipID w
    tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
    atomically $ undockShSt tsh shid tst stid
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
-executeUserCommand UCUndock istate@(ContextStationOwner stid, ScreenNavigation) w = do
+executeUserCommand (UCUndock,_) istate@(ContextStationOwner stid, ScreenNavigation) w = do
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
    shid <- getOwnerShipID w
    tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
    atomically $ undockShSt tsh shid tst stid
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
-executeUserCommand UCExit istate _ = return (URSuccess, istate)
-executeUserCommand UCBack istate _ = return (URSuccess, interface_back istate)
-executeUserCommand UCTrade istate@(ContextStationGuest stid, _) w = do
+executeUserCommand (UCExit,_) istate _ = return (URSuccess, istate)
+executeUserCommand (UCBack,_) istate _ = return (URSuccess, interface_back istate)
+executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) w = do
    st <- (world_stations w) !!! stid
    return (URAnswer (show $ station_stock st), interface_trade istate)
 
-executeUserCommand UCNavigation istate _ = return (URSuccess, interface_navigation istate)
+executeUserCommand (UCNavigation,_) istate _ = return (URSuccess, interface_navigation istate)
 
-executeUserCommand (UCBuy bw ba) istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCBuy, UCATrade bw ba) istate@(ContextStationGuest stid, ScreenTrade) w = do
     applyTradeFn canBuy buy stid w bw ba >>= \r -> return (r, istate)
 
-executeUserCommand (UCSell sw sa) istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCSell, UCATrade sw sa) istate@(ContextStationGuest stid, ScreenTrade) w = do
     applyTradeFn canSell sell stid w sw sa >>= \r -> return (r, istate)
 
 executeUserCommand _ _ _ = undefined

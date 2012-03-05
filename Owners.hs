@@ -3,6 +3,7 @@ module Owners where
 import Data.IntMap
 
 import Currency
+import InterfaceShow
 import PersonalData
 import Wrappers
 
@@ -13,6 +14,14 @@ data Owner = Owner
     , owner_personalInfo :: PersonalInfo
     , owner_money :: Money }
     deriving (Show)
+
+instance ContextualShow Owner where
+    contextShow (c, ScreenCharacter) o = "The main character.\nName: " ++ owner_name o
+        ++ "\n" ++ contextShow (c, ScreenCharacter) (owner_personalInfo o)
+        ++ "\nMoney: " ++ show (owner_money o)
+
+instance ContextualShow PersonalInfo where
+    contextShow (_, ScreenCharacter) (Person r c) = show r ++ " " ++ show c
 
 ownerOne :: Owner
 ownerOne = Owner "Helen Ripley" [] [] defaultPersonalInfo 1000
