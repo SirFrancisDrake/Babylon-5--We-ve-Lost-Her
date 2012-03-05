@@ -28,7 +28,7 @@ data Station = Station
     , station_description :: String
     , station_stockChangers :: [(Station -> Station)] -- natural income
     }                                                 -- and production
-    deriving (Show)
+    deriving ()
 
 instance Eq Station where
     (==) = on (==) station_name

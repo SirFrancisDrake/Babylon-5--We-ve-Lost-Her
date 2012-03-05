@@ -1,7 +1,9 @@
 module Wares where
 
+import Control.Monad (join)
 import Data.Char (toLower)
-import Data.List (foldl')
+import Data.Function (on)
+import Data.List (foldl', intersperse, sort, sortBy)
 import Data.Monoid
 
 import StringFunctions
@@ -42,7 +44,27 @@ instance Recognize Ware where
                     
 
 data Cargo = Cargo [(Ware, Amount)]
-    deriving (Show)
+    deriving ()
+
+instance Show Cargo where -- copypasted from Stock.hs `instance Show Stock`, generalize FIXME
+    show (Cargo ps) = let nps = ("Ware", "Amount") : map (\(a,b) ->
+                                         (show a, show b)) 
+                                         (sortBy (on compare fst) ps)
+                          wareColWidth = (last . sort $ map length wareNames) + 1
+                          lengthBy fn ps = (last . sort $ map (length . fn) nps) + 1
+                          amountColWidth        = lengthBy snd nps
+                          makeLength st ln = st ++ (take (ln - length st) $ repeat ' ')
+                          showP (w,a) = join $ intersperse "| " $ 
+                            [ makeLength w wareColWidth
+                            , makeLength a amountColWidth
+                            ]
+                          header = join $ intersperse "| " $ 
+                            [ makeLength "Ware" wareColWidth
+                            , makeLength "Amount" amountColWidth
+                            ]
+                          break = "\n\t" ++ (take (length header) $ repeat '-') ++ "\n"
+                      in "\t" ++ header ++ break ++ "\t" ++ 
+                           (join $ intersperse "\n\t" (map showP (tail nps)))
 
 defaultCargo = Cargo
                [ (Fuel,         0)

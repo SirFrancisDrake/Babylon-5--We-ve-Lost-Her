@@ -9,8 +9,10 @@ import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)
 
 import InterfaceShow
+import Owners
 import Ships
 import Stations
+import Stock
 import StringFunctions
 import Wares
 import Wrappers
@@ -226,7 +228,12 @@ executeUserCommand (UCExit,_) istate _ = return (URSuccess, istate)
 executeUserCommand (UCBack,_) istate _ = return (URSuccess, interface_back istate)
 executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) w = do
    st <- (world_stations w) !!! stid
-   return (URAnswer (show $ station_stock st), interface_trade istate)
+   let stStock = "\nStation stock is:\n" ++ (show $ station_stock st)
+   o <- getOwner w
+   let budget = "\nYour budget is: " ++ (show $ owner_money o) ++ " credits."
+   sh <- getOwnerShip w
+   let shCargo = "\nYour ship's cargo bay is:\n" ++ (show $ ship_cargo sh)
+   return (URAnswer (stStock ++ "\n" ++ budget ++ "\n" ++ shCargo) , interface_trade istate)
 
 executeUserCommand (UCNavigation,_) istate _ = return (URSuccess, interface_navigation istate)
 
@@ -256,6 +263,9 @@ getOwnerShip w = (world_ships w) !!! 0 -- FIXME when needed
 
 getOwnerShipID :: World -> IO ShipID
 getOwnerShipID w = return 0 -- FIXME when needed
+
+getOwner :: World -> IO Owner
+getOwner w = (world_owners w) !!! 0 -- FIXME when needed
 
 getOwnerID :: World -> IO OwnerID
 getOwnerID _ = return 0 -- FIXME when needed

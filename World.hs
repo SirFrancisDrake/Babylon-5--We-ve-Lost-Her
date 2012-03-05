@@ -139,7 +139,7 @@ printWorld :: ReaderT World IO ()
 printWorld = do
     world <- ask
     liftIO $ putStrLn "\n\nShowing stations:"
-    liftIO $ printClass (world_stations world)
+    liftIO $ putStrLn "Sorry, disabled for weird reasons. See Mar 5th, 21:02"
     liftIO $ putStrLn "\n\nShowing ships:"
     liftIO $ printClass (world_ships world)
     liftIO $ putStrLn "\n\nShowing owners:"
