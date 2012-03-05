@@ -13,18 +13,18 @@ import Wares
 import Wrappers
 import World
 
-data UserCommand = UCGoTo StationID
-                 | UCSell Ware Amount
+data UserCommand = UCBack
                  | UCBuy Ware Amount
-                 | UCStationInfo
                  | UCCharacterInfo
-                 | UCUndock
-                 | UCNavigation
-                 | UCList
-                 | UCTrade
-                 | UCBack
-              -- | UCSave
                  | UCExit
+                 | UCGoTo StationID
+                 | UCList
+                 | UCNavigation
+                 | UCStationInfo
+                 | UCSell Ware Amount
+                 | UCTrade
+                 | UCUndock
+              -- | UCSave
     deriving ()
 
 instance Show UserCommand where
@@ -37,23 +37,29 @@ instance Show UserCommand where
 
 instance ContextualShow UserCommand where
     contextShow (c, _) UCBack = "back"
-    contextShow (c, _) UCTrade = "trade"
-    contextShow (c, _) (UCGoTo i) = "go"
-    contextShow (c, _) (UCSell w a) = "sell"
     contextShow (c, _) (UCBuy w a) = "buy"
-    contextShow (c, _) UCUndock = "undock"
-    contextShow (c, _) UCList = "list"
-    contextShow (c, _) UCExit = "exit"
-    contextShow (c, _) UCStationInfo = "info"
     contextShow (c, _) UCCharacterInfo = "char"
+    contextShow (c, _) UCExit = "exit"
+    contextShow (c, _) (UCGoTo i) = "go"
+    contextShow (c, _) UCList = "list"
+    contextShow (c, _) UCNavigation = "navigation"
+    contextShow (c, _) (UCSell w a) = "sell"
+    contextShow (c, _) UCStationInfo = "info"
+    contextShow (c, _) UCTrade = "trade"
+    contextShow (c, _) UCUndock = "undock"
 
 instance Eq UserCommand where
-    (==) (UCGoTo _) (UCGoTo _) = True
-    (==) (UCSell _ _) (UCSell _ _) = True
+    (==) UCBack UCBack = True
     (==) (UCBuy _ _) (UCBuy _ _) = True
-    (==) UCUndock UCUndock = True
-    (==) UCList UCList = True
+    (==) UCCharacterInfo UCCharacterInfo = True
     (==) UCExit UCExit = True
+    (==) (UCGoTo _) (UCGoTo _) = True
+    (==) UCList UCList = True
+    (==) UCNavigation UCNavigation = True
+    (==) UCStationInfo UCStationInfo = True
+    (==) (UCSell _ _) (UCSell _ _) = True
+    (==) UCTrade UCTrade = True
+    (==) UCUndock UCUndock = True
     (==) _ _ = False
 
 instance Recognize Int where
@@ -61,17 +67,32 @@ instance Recognize Int where
                                                             else Nothing
 
 instance Recognize UserCommand where
-    recognize uc = let patterns = ["go", "sell", "buy", "undock", "exit", "quit", "list", "char", "info"]
+    recognize uc = let patterns = [ "back"
+                                  , "buy"
+                                  , "char"
+                                  , "exit"
+                                  , "go"
+                                  , "info"
+                                  , "list"
+                                  , "navigation"
+                                  , "sell"
+                                  , "trade"
+                                  , "undock"
+                                  , "quit"
+                                  ]
                    in case exhaustive (map toLower uc) patterns of
-                       Just "go" -> recognizeGo $ words uc
-                       Just "sell" -> recognizeSell $ words uc
+                       Just "back" -> Just UCBack
                        Just "buy" -> recognizeBuy $ words uc
-                       Just "undock" -> Just UCUndock
-                       Just "exit" -> Just UCExit
-                       Just "quit" -> Just UCExit
-                       Just "list" -> Just UCList
-                       Just "info" -> Just UCStationInfo
                        Just "char" -> Just UCCharacterInfo
+                       Just "exit" -> Just UCExit
+                       Just "go" -> recognizeGo $ words uc
+                       Just "info" -> Just UCStationInfo
+                       Just "list" -> Just UCList
+                       Just "navigation" -> Just UCNavigation
+                       Just "sell" -> recognizeSell $ words uc
+                       Just "trade" -> Just UCTrade
+                       Just "undock" -> Just UCUndock
+                       Just "quit" -> Just UCExit
                        otherwise -> Nothing
 
 recognizeGo :: [String] -> Maybe UserCommand
@@ -117,6 +138,7 @@ printContext ((ContextStationOwner stid), ScreenNavigation) =
     putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
 printContext ((ContextShipGuest shid), ScreenNavigation) = 
     putStrLn $ "You're on a ship with ID " ++ show shid -- FIXME
+printContext _ = return ()
 
 data UserResult = URSuccess
                 | URFailure
@@ -130,6 +152,7 @@ instance Show UserResult where
 
 getValidCommand :: [UserCommand] -> IO UserCommand
 getValidCommand ucs = do
+    putStr "###> "
     comm <- getLine
     let c = recognize comm
     if (isJust c) && (fromJust c) `elem` ucs 
@@ -170,7 +193,7 @@ chooseAvailibleCommands _ = undefined
 
 printAvailibleCommands :: [UserCommand] -> InterfaceState -> IO ()
 printAvailibleCommands ucs istate = 
-    putStrLn $ "You can do something of the following: " ++ (contextShowList istate ucs)
+    putStrLn $ "\nYou can do something of the following: " ++ (contextShowList istate ucs)
 
 getUserCommand :: InterfaceState -> IO (UserCommand, Bool)
 getUserCommand istate = do
@@ -188,15 +211,17 @@ executeUserCommand UCStationInfo istate w = do
     return (URAnswer (station_guestShow st), istate)
 
 executeUserCommand UCCharacterInfo istate w = do
-    stid <- (world_ships w) !!! 0 >>= return . dockedStID
-    st <- (world_stations w) !!! stid
-    return (URAnswer (station_guestShow st), istate)
+    o <- (world_owners w) !!! 0
+    return (URAnswer (show o), istate)
 
 executeUserCommand UCList istate@(ContextStationGuest stid, ScreenTrade) w = do
    st <- (world_stations w) !!! stid
    return (URAnswer (show $ station_stock st), istate)
 
 executeUserCommand UCExit istate _ = return (URSuccess, istate)
+executeUserCommand UCBack istate _ = return (URSuccess, interface_back istate)
+executeUserCommand UCTrade istate _ = return (URSuccess, interface_trade istate)
+executeUserCommand UCNavigation istate _ = return (URSuccess, interface_navigation istate)
 executeUserCommand _ _ _ = undefined
 
 showResult :: UserResult -> IO ()
@@ -210,9 +235,9 @@ showSituation w istate = do
     ownerShip <- getOwnerShip w
     let nm = ship_navModule ownerShip
     let np = navModule_position nm
+    putStrLn "\n"
     case np of
-        (DockedToStation stid) -> (world_stations w) !!! stid >>= 
-                                                putStrLn . station_guestShow
+        (DockedToStation stid) -> putStrLn "You seem to be docked to a station. "
         (DockedToShip shid) -> (world_ships w) !!! shid >>= print
         (SNPSpace pos) -> print pos
 

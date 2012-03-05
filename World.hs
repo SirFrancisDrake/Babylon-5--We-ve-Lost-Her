@@ -64,11 +64,11 @@ makeNewWorld owner ship = do
 
     tShips <- newTVarIO empty
     addInstance tShips ship -- adds the player character's ship
-    atomically $ intMapToTVarIntMap defaultShips >>= writeTVar tShips 
+    mapM_ (addInstance tShips) (vals defaultShips)
 
     tOwners <- newTVarIO empty
     addInstance tOwners owner -- adds the player character
-    atomically $ intMapToTVarIntMap defaultOwners >>= writeTVar tOwners
+    mapM_ (addInstance tOwners) (vals defaultOwners)
 
     fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
     dockMissing tShips tStations -- docks the ships that start docked

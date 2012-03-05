@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 
 import StartingInput
 import Interface
+import InterfaceShow
 import World
 
 debWorld :: IO World

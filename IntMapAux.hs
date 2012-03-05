@@ -1,6 +1,6 @@
 module IntMapAux where
 
-import Data.IntMap
+import Data.IntMap hiding (map)
 import Prelude hiding (filter, null) -- looks like haskell needs a `container` typeclass
 
 -- This function inserts a value into an IntMap without a pre-defined key
@@ -18,3 +18,6 @@ lookupUnique :: (Eq a) => a -> IntMap a -> Maybe a
 lookupUnique a as = let filtered = toList $ filter (== a) as
                     in if filtered == [] then Nothing
                                          else Just $ snd $ head filtered
+
+vals :: IntMap a -> [a]
+vals = (map snd) . toList
