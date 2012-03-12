@@ -19,36 +19,6 @@ si_buyPrice      (_,_,bp,_,_) = bp
 si_sellPrice     (_,_,_,sp,_) = sp
 si_desiredAmount (_,_,_,_,da) = da
 
-instance Show Stock where -- Rather ugly code, probably needs revisiting. FIXME
-    show sis = let nsis = ("Ware", "Amount", "Buying price", "Selling price", 
-                          "Desired amount") : map (\(a,b,c,d,e) ->
-                                 (show a, show b, show c, show d, show e)) 
-                                 (sortBy (on compare si_ware) (filterTrading sis))
-                   wareColWidth = (last . sort $ map length wareNames) + 1
-                   lengthBy fn sis = (last . sort $ map (length . fn) nsis) + 1
-                   amountColWidth        = lengthBy si_amount nsis
-                   buyColWidth           = lengthBy si_buyPrice nsis
-                   sellColWidth          = lengthBy si_sellPrice nsis
-                   desiredAmountColWidth = lengthBy si_desiredAmount nsis
-                   makeLength st ln = st ++ (take (ln - length st) $ repeat ' ')
-                   showSi (w,a,bp,sp,da) = join $ intersperse "| " $ 
-                     [ makeLength w wareColWidth
-                     , makeLength a amountColWidth
-                     , makeLength bp buyColWidth
-                     , makeLength sp sellColWidth
-                     , makeLength da desiredAmountColWidth
-                     ]
-                   header = join $ intersperse "| " $ 
-                     [ makeLength "Ware" wareColWidth
-                     , makeLength "Amount" amountColWidth
-                     , makeLength "Buying price" buyColWidth
-                     , makeLength "Selling price" sellColWidth
-                     , makeLength "Desired amount" desiredAmountColWidth
-                     ]
-                   break = "\n\t" ++ (take (length header) $ repeat '-') ++ "\n"
-               in "\t" ++ header ++ break ++ "\t" ++ 
-                    (join $ intersperse "\n\t" (map showSi (tail nsis)))
-
 standardBuyPriceDeparture :: Double
 standardBuyPriceDeparture = 0.9
 

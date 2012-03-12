@@ -10,6 +10,7 @@ import Data.IntMap hiding (filter, map)
 
 import InterfaceShow
 import Owners
+import Ppr
 import Ships
 import Stations
 import Stock
@@ -208,7 +209,7 @@ executeUserCommand (UCCharacterInfo,_) istate w = do
 
 executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) w = do
    st <- (world_stations w) !!! stid
-   return (URAnswer (show $ station_stock st), istate)
+   return (URAnswer (pprShow $ station_stock st), istate)
 
 executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) w = do
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
@@ -228,7 +229,7 @@ executeUserCommand (UCExit,_) istate _ = return (URSuccess, istate)
 executeUserCommand (UCBack,_) istate _ = return (URSuccess, interface_back istate)
 executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) w = do
    st <- (world_stations w) !!! stid
-   let stStock = "\nStation stock is:\n" ++ (show $ station_stock st)
+   let stStock = "\nStation stock is:\n" ++ (pprShow $ station_stock st)
    o <- getOwner w
    let budget = "\nYour budget is: " ++ (show $ owner_money o) ++ " credits."
    sh <- getOwnerShip w
