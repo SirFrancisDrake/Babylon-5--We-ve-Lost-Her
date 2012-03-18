@@ -7,6 +7,7 @@ import Control.Concurrent.STM
 import Data.Char (toLower)
 import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)
+import System.Console.Readline
 
 import InterfaceShow
 import Owners
@@ -140,7 +141,7 @@ instance Show UserResult where
 getValidCommand :: [UserCommand] -> IO (UserCommand, UserCommandArgs)
 getValidCommand ucs = do
     putStr "\n###> "
-    comm <- getLine
+    comm <- readline "" >>= return . fromJust
     let c = smartRecognize comm ucs
     if (isJust c) then return (fromJust c)
                   else putStrLn "Nah, wrong way, sorry. Try again\n"
@@ -209,7 +210,7 @@ executeUserCommand (UCCharacterInfo,_) istate w = do
 
 executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) w = do
    st <- (world_stations w) !!! stid
-   return (URAnswer (pprShow $ station_stock st), istate)
+   return (URAnswer (pprShow $ filterTrading $ station_stock st), istate)
 
 executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) w = do
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid

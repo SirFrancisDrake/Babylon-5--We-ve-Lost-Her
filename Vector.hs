@@ -4,7 +4,9 @@ module Vector where
 -- So, it's quicker to write a dirty and slow implementation
 -- Which this module is
 
+import Data.Function (on)
 import Data.Monoid
+import Prelude hiding (length)
 
 data Vector3D = Vector3D
     { vec_x :: Double
@@ -26,6 +28,11 @@ instance Num Vector3D where
 length (Vector3D x y z) = sqrt( x^2 + y^2 + z^2 )
 
 fromList (x:y:z:[]) = Vector3D x y z
+toList (Vector3D x y z) = [x,y,z]
+
+distance :: Vector3D -> Vector3D -> Double
+distance v1 v2 = sqrt . sum $ on ( zipWith (\a b -> ( a-b )^2 ) ) toList v1 v2
+
 
 instance Monoid Vector3D where
     mempty = Vector3D 0 0 0 -- not fromInteger 0 for the reasons stated above

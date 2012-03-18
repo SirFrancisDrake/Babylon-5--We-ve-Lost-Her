@@ -245,7 +245,7 @@ undockShSt tsh shid tst stid = do
                             P.filter (/= shid) (station_dockingBay station) }
 
 processAI :: ShipAI -> ShipID -> ReaderT World IO ShipAI -- this fn does more than its 
-processAI ai@(ShipAI (SGo stid) ais) shid = do     -- type signature shows, care
+processAI ai@(ShipAI (SGo stid) ais) shid = do           -- type signature shows, care
     world <- ask
     ships <- liftIO $ readTVarIO $  world_ships world
     stations <- liftIO $ readTVarIO $ world_stations world

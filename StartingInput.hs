@@ -9,6 +9,7 @@ module StartingInput (
 import Control.Applicative ((<$>))
 import Data.Char (isAlpha, isSpace, toLower)
 import Data.Maybe (fromJust, isJust)
+import System.Console.Readline
 
 import AI
 import PersonalData
@@ -93,7 +94,7 @@ instance Recognize Race where
                     
 getValidInput :: (Eq a) => (String -> Maybe a) -> IO a
 getValidInput fn = do
-    input <- fn <$> getLine
+    input <- fn <$> (readline "" >>= return . fromJust)
     if isJust input then return $ fromJust input
                     else putStr "You seem to be a turtle. Try again: " >> 
                          getValidInput fn
