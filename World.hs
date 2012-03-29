@@ -1,5 +1,6 @@
 module World where
 
+import Control.Concurrent
 import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
 import Control.Monad.Reader
@@ -82,16 +83,18 @@ intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
                                vals = P.map snd (toList ias)
 
           -- stop lock
-gameCycle :: TVar Bool -> ReaderT World IO ()
-gameCycle lock = liftIO (sleep (fromIntegral tickReal))
+gameCycle :: TVar Bool -> MVar () -> ReaderT World IO ()
+gameCycle slock plock = 
+         liftIO (readMVar plock)
+         >> liftIO (sleep (fromIntegral tickReal))
          >> cycleEverything
       -- >> printWorld
-         >> (liftIO $ readTVarIO lock)
-         >>= \stop -> if (not stop) then gameCycle lock
+         >> (liftIO $ readTVarIO slock)
+         >>= \stop -> if (not stop) then gameCycle slock plock
                                     else return ()
 
-gameCycleIO :: World -> TVar Bool -> IO ()
-gameCycleIO w lock = runReaderT (gameCycle lock) w
+gameCycleIO :: World -> TVar Bool -> MVar () -> IO ()
+gameCycleIO w slock plock = runReaderT (gameCycle slock plock) w
 
 
 -- SECTION BREAK
@@ -243,6 +246,10 @@ undockShSt tsh shid tst stid = do
     writeTVar tsh ship{ ship_navModule = newShipNavModule }
     writeTVar tst station{ station_dockingBay =
                             P.filter (/= shid) (station_dockingBay station) }
+
+--              Ship       - StationID
+setOnCourse :: (TVar Ship) -> StationID -> STM ()
+setOnCourse tsh stid = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse stid)
 
 processAI :: ShipAI -> ShipID -> ReaderT World IO ShipAI -- this fn does more than its 
 processAI ai@(ShipAI (SGo stid) ais) shid = do           -- type signature shows, care

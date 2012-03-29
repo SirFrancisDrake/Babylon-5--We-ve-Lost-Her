@@ -11,7 +11,11 @@ import Wares
 import Wrappers
 
 defaultStations :: IntMap Station
-defaultStations = fromList $ zip [0..] [citadelStation, solarisOne]
+defaultStations = fromList $ zip [0..] 
+                                 [ citadelStation
+                                 , solarisOne
+                                 , minbariPrime
+                                 ]
 
 citadelStation :: Station
 citadelStation = Station "Citadel station" 
@@ -35,4 +39,14 @@ solarisOne = Station "Solaris research station"
                      [] 
                      "Gibarian Inc."
                      "Solaris research station is located in low orbit of planet Solaris, believed to be the only known planetary-sized alien life form. This is the center of solaris-related research and observations."
+                     []
+
+minbariPrime :: Station
+minbariPrime = Station "Minbari Prime" 
+                     (Space (V.fromList [320,100,23]) Normalspace)
+                     defaultStock 
+                     defaultMoney 
+                     [] 
+                     "Minbari Republic"
+                     "This is Minbari Prime, home planet of the Minbari. I do not dare say more."
                      []

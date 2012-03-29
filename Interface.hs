@@ -3,12 +3,14 @@
 
 module Interface where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Data.Char (toLower)
 import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)
 import System.Console.Readline
 
+import ErrorMessages
 import InterfaceShow
 import Owners
 import Ppr
@@ -38,12 +40,33 @@ data UserCommandArgs = UCANone
                      | UCATrade Ware Amount
                      | UCAGoTo StationID
 
+-- REMINDER FOR CONTEXTUALSHOW, borrowing from InterfaceShow.hs
+--
+-- class ContextualShow a where
+--       contextShow :: InterfaceState -> a -> String
+--
+-- type InterfaceState = (Context, Screen)
+--
+-- data Context = ContextSpace
+--              | ContextStationGuest StationID
+--              | ContextStationOwner StationID
+--              | ContextShipGuest ShipID
+--     deriving (Eq, Show)
+-- 
+-- data Screen = ScreenNavigation
+--             | ScreenCharacter
+--             | ScreenTrade
+--             | ScreenMain
+--     deriving (Eq, Show)
+
 instance ContextualShow UserCommand where
     contextShow (c, _) UCBack = "back (to main interface screen)"
     contextShow (c, _) UCBuy = "buy (usage: `buy ware amount` or `buy amount ware`)"
     contextShow (c, _) UCCharacterInfo = "char (show character info)"
     contextShow (c, _) UCExit = "exit (the game)"
     contextShow (c, _) UCGoTo = "go (to a station, usage: `go stationID`)"
+    contextShow (ContextSpace, ScreenNavigation) UCList = 
+        "list (of known stations in the universe)"
     contextShow (c, _) UCList = "list (stock of the station or ship's cargo)"
     contextShow (c, _) UCNavigation = "navigation (go to navigation screen)"
     contextShow (c, _) UCSell = "sell (see buy)"
@@ -94,7 +117,7 @@ smartRecognize str ucs =
 
 noArgs :: String -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
 noArgs s j | (tail . words) s == [] = j >>= \i -> return (i,UCANone)
-           | otherwise = error "Interface: Arguments for that command should be empty."
+           | otherwise = err_argumentsShouldBeEmpty
 
 recognizeTradeArgs :: [String] -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
 recognizeTradeArgs (_:w:a:[]) muc = do
@@ -107,7 +130,7 @@ recognizeTradeArgs (_:w:a:[]) muc = do
                                 else if (isJust w2) && (isJust a2) 
                                         then Just $ (uc, UCATrade (fromJust w2) (fromJust a2))
                                         else Nothing
-recognizeTradeArgs _ _ = error "Interface: Can't recognize trade arguments"
+recognizeTradeArgs _ _ = err_recognizeTradeArguments
 
 recognizeGoArgs :: [String] -> Maybe UserCommand -> Maybe (UserCommand, UserCommandArgs)
 recognizeGoArgs (g:i:[]) muc = do
@@ -115,7 +138,7 @@ recognizeGoArgs (g:i:[]) muc = do
     if (isJust $ (recognize i :: Maybe Int)) 
         then Just $ (UCGoTo, UCAGoTo (fromJust $ recognize i))
         else Nothing
-recognizeGo _ _ = error "Interface: Can't recognize go arguments"
+recognizeGo _ _ = err_recognizeGoArguments
 
 printContext :: InterfaceState -> IO ()
 printContext (ContextSpace, ScreenNavigation) = 
@@ -152,6 +175,7 @@ chooseAvailibleCommands (ContextSpace, ScreenNavigation) =
     [ UCCharacterInfo
     , UCExit
     , UCGoTo
+    , UCList
     ]
 chooseAvailibleCommands ((ContextStationGuest st), ScreenMain) =
     [ UCCharacterInfo
@@ -212,6 +236,16 @@ executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) w =
    st <- (world_stations w) !!! stid
    return (URAnswer (pprShow $ filterTrading $ station_stock st), istate)
 
+executeUserCommand (UCList,_) istate@(ContextSpace, ScreenNavigation) w = do
+    let vals imap = map ((!) imap) (keys imap)
+    -- let's see if you're smart enough to digest this one:
+    sts <- readTVarIO (world_stations w) >>= \imap -> sequence
+           $ zipWith (>>=) (map readTVarIO (vals imap)) 
+                           (map (\k -> \a -> return (k,a)) (keys imap))
+    let header = "\n\tID   Station Name\n\t" ++ replicate 20 '*' ++ "\n"
+    let newPairs = map (\(a,b) -> "\t" ++ show a ++ "    " ++ station_name b ++ "\n") sts
+    return (URAnswer (concat $ header:newPairs), istate)
+
 executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) w = do
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
    shid <- getOwnerShipID w
@@ -224,6 +258,10 @@ executeUserCommand (UCUndock,_) istate@(ContextStationOwner stid, ScreenNavigati
    shid <- getOwnerShipID w
    tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
    atomically $ undockShSt tsh shid tst stid
+   return (URSuccess, (ContextSpace, ScreenNavigation))
+
+executeUserCommand (UCGoTo, UCAGoTo stid) istate@(ContextSpace, ScreenNavigation) w = do
+   getOwnerShipT w >>= \sh -> atomically (setOnCourse sh stid)
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
 executeUserCommand (UCExit,_) istate _ = return (URSuccess, istate)
@@ -263,6 +301,10 @@ showResult = print
 getOwnerShip :: World -> IO Ship
 getOwnerShip w = (world_ships w) !!! 0 -- FIXME when needed
 
+getOwnerShipT :: World -> IO (TVar Ship)
+getOwnerShipT w = readTVarIO (world_ships w) >>= \shs -> return $ shs ! 0
+                                                     -- FIXME when needed
+
 getOwnerShipID :: World -> IO ShipID
 getOwnerShipID w = return 0 -- FIXME when needed
 
@@ -283,15 +325,16 @@ showSituation w istate = do
         (DockedToShip shid) -> (world_ships w) !!! shid >>= print
         (SNPSpace pos) -> print pos
 
-deviseContext :: World -> IO Context
-deviseContext w = do
-    ownerShip <- getOwnerShip w
-    let nm = ship_navModule ownerShip
-    let np = navModule_position nm
-    case np of
-        (DockedToStation stid) -> return $ ContextStationGuest stid
-        (DockedToShip shid) -> return $ ContextShipGuest shid
-        (SNPSpace pos) -> return $ ContextSpace
+-- DEPRECATED, DELETE IF NO LONGER LOOKS INSPIRING
+-- deviseContext :: World -> IO Context
+-- deviseContext w = do
+--     ownerShip <- getOwnerShip w
+--     let nm = ship_navModule ownerShip
+--     let np = navModule_position nm
+--     case np of
+--         (DockedToStation stid) -> return $ ContextStationGuest stid
+--         (DockedToShip shid) -> return $ ContextShipGuest shid
+--         (SNPSpace pos) -> return $ ContextSpace
     
 interfaceCycle :: World -> InterfaceState -> IO ()
 interfaceCycle world istate = do
@@ -302,3 +345,9 @@ interfaceCycle world istate = do
     putStrLn ""
     if not ifStop then interfaceCycle world newIstate
                   else return ()
+
+pause :: MVar () -> IO ()
+pause = takeMVar
+
+unpause :: MVar () -> IO ()
+unpause = flip putMVar ()

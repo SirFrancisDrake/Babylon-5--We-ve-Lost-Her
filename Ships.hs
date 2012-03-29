@@ -38,8 +38,9 @@ data NavStatus = Idle
                | DockingToStation StationID 
                | DockingToShip ShipID
                | Undocking
-               | MovingTo { navMoving_velocity :: Vector3D
-                          , navMoving_target :: Vector3D }
+               | MovingToSpace { navMoving_velocity :: Vector3D
+                               , navMoving_target :: Vector3D }
+               | MovingToStation StationID
     deriving (Show)
 
 data Ship = Ship
@@ -53,7 +54,7 @@ data Ship = Ship
              }
         deriving (Show)
 
-defaultShips = I.fromList $ zip [0..] [rimbauld, goldenHind]
+defaultShips = I.fromList $ zip [1..] [rimbauld, goldenHind]
 
 rimbauld :: Ship
 rimbauld = defaultShip{ ship_name = "Rimbauld", ship_owner = 1 } -- 1 for Helen Ripley CARE
@@ -136,6 +137,10 @@ dockedToStNS :: ShipNavPosition -> StationID -> Bool
 dockedToStNS (DockedToStation i) j = i == j
 dockedToStNS _ _ = False
 
+setShipOnCourse :: Ship -> StationID -> Ship
+setShipOnCourse s stid = let (NavModule pos _) = ship_navModule s
+                     in s{ ship_navModule = NavModule pos (MovingToStation stid) }
+
 ship_freeSpace :: Ship -> Weight
 ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (ship_cargo s)
 
@@ -144,11 +149,11 @@ tick = fromInteger tickGame -- WARNING: MAGIC CONSTANT
 
 updateNavStatus :: NavModule -> NavModule -- ignores SpaceType FIXME
 updateNavStatus m@(NavModule pos Idle) = m 
-updateNavStatus m@(NavModule (SNPSpace (Space pos st)) (MovingTo vel targ)) =
+updateNavStatus m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ)) =
     let posIfKeepMoving = pos + vel * tick
         closeEnough = length( targ-pos ) <= length( vel*tick )
     in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle
-                      else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingTo vel targ)
+                      else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ)
 
 instance WareOps Ship where
     addWare w a st@Ship{ ship_cargo = cargo } = st{ ship_cargo = addWare w a cargo}

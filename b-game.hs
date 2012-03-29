@@ -9,10 +9,11 @@ import InterfaceShow
 import World
 
 main = do
-    (own, shi) <- getStartingInput
-    newWorld <- makeNewWorld own shi
+    (owner, ship) <- getStartingInput
+    newWorld <- makeNewWorld owner ship
     stopLock <- newTVarIO False
-    forkedID <- forkIO $ gameCycleIO newWorld stopLock
+    pauseLock <- newMVar ()
+    forkedID <- forkIO $ gameCycleIO newWorld stopLock pauseLock
     playerCycle newWorld
     atomically $ writeTVar stopLock True
 
