@@ -13,12 +13,14 @@ import System.Posix (sleep) -- first non-cross-platform line in the code
 
 import AI
 import Currency
+import DataTypes
+import Data.Everything
 import GlobalConst
 import IntMapAux
 import Navigation
-import Owners
-import Ships hiding (Ships(..))
-import Stations hiding (Stations(..))
+import Owner
+import Ships
+import ShipsAndStations
 import StationsData
 import Stock
 import Transactions
@@ -66,23 +68,24 @@ makeNewWorld owner ship = do
 
     tShips <- newTVarIO empty
     addInstance tShips ship -- adds the player character's ship
-    mapM_ (addInstance tShips) (vals defaultShips)
+    --mapM_ (addInstance tShips) (vals defaultShips)
 
     tOwners <- newTVarIO empty
     addInstance tOwners owner -- adds the player character
-    mapM_ (addInstance tOwners) (vals defaultOwners)
+    --mapM_ (addInstance tOwners) (vals defaultOwners)
 
     fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
     dockMissing tShips tStations -- docks the ships that start docked
 
     return $ World tStations tShips tOwners
 
+    
 intMapToTVarIntMap :: IntMap a -> STM (IntMap (TVar a))
 intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
                          where keys = P.map fst (toList ias)
                                vals = P.map snd (toList ias)
 
-          -- stop lock
+          -- stop lock  pause lock
 gameCycle :: TVar Bool -> MVar () -> ReaderT World IO ()
 gameCycle slock plock = 
          liftIO (readMVar plock)
@@ -138,15 +141,15 @@ cycleEverything = do
     liftIO $ processDocking ships stations
     liftIO $ processUndocking ships stations
 
-printWorld :: ReaderT World IO ()
-printWorld = do
-    world <- ask
-    liftIO $ putStrLn "\n\nShowing stations:"
-    liftIO $ putStrLn "Sorry, disabled for weird reasons. See Mar 5th, 21:02"
-    liftIO $ putStrLn "\n\nShowing ships:"
-    liftIO $ printClass (world_ships world)
-    liftIO $ putStrLn "\n\nShowing owners:"
-    liftIO $ printClass (world_owners world)
+-- printWorld :: ReaderT World IO ()
+-- printWorld = do
+--     world <- ask
+--     liftIO $ putStrLn "\n\nShowing stations:"
+--     liftIO $ putStrLn "Sorry, disabled for weird reasons. See Mar 5th, 21:02"
+--     liftIO $ putStrLn "\n\nShowing ships:"
+--     liftIO $ printClass (world_ships world)
+--     liftIO $ putStrLn "\n\nShowing owners:"
+--     liftIO $ printClass (world_owners world)
 
 
 -- SECTION BREAK
@@ -161,25 +164,24 @@ printClass tmap = readTVarIO tmap >>=
 -- [PROCESS] -- see section description in the contents above
 
 class Processable a where
-    process :: Int -> IntMap (TVar a) -> IO ()
+    process :: TVar a -> IO ()
 
 instance Processable Station where
-    process sId ss = atomically $
-        readTVar (ss ! sId) >>= \station ->
-        writeTVar (ss ! sId) $ stationFns station
+    process tst = atomically $
+        readTVar tst >>= (writeTVar tst) . stationFns
         where stationFns = foldl' (.) id
                                   [ (\st -> addMoney 3000 st) -- example tax income
                                   ]
 
 instance Processable Owner where
-    process _ _ = return ()
+    process _ = return ()
 
 instance Processable Ship where
-    process _ _ = return ()
+    process _ = return ()
 
 cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> 
-                                 mapM_ (\k -> process k imap) (keys imap)
+                                 mapM_ (\k -> process (imap ! k)) (keys imap)
 
 fillOwnedShips :: Ships -> Owners -> IO ()
 fillOwnedShips sh o = atomically $ do
@@ -197,45 +199,50 @@ fillOwnedShips sh o = atomically $ do
     where shKeys ships = P.map fst (toList ships)
           shVals ships = P.map snd (toList ships)
     
+-- Appendix-like remain. I let it stay for clearness its name provides just once
 dockMissing :: Ships -> Stations -> IO ()
-dockMissing tships tstations = atomically $ do
-    ships <- readTVar tships
-    stations <- readTVar tstations
-    needDocking <- filterM (\k -> check ships k docked) (keys ships)
-    dockingStations <- forM needDocking (\k -> check ships k dockedStID)
-    let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(shid,stid) -> dockShSt (ships ! shid) shid (stations ! stid) stid) dockingPairs
+dockMissing = processDocking
 
 processDocking :: Ships -> Stations -> IO ()
 processDocking tships tstations = atomically $ do
     ships <- readTVar tships
     stations <- readTVar tstations
-    needDocking <- filterM (\k -> check ships k docking) (keys ships)
-    dockingStations <- forM needDocking (\k -> check ships k dockingStID)
+    needDocking <- filterM (\ship -> check ship docking) (vals ships)
+    dockingStations <- forM needDocking (\ship -> check ship dockingSt)
     let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(shid,stid) -> dockShSt (ships ! shid) shid (stations ! stid) stid) dockingPairs
+    mapM_ (\(ship,station) -> dockShSt ship station) dockingPairs
 
-dockShSt :: (TVar Ship) -> Int -> (TVar Station) -> Int -> STM ()
-dockShSt tsh shid tst stid = do
+dockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
+dockShSt tsh tst = do
     ship <- readTVar tsh
-    writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation stid) Idle }
+    writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle }
     station <- readTVar tst
     writeTVar tst station{ station_dockingBay =
-                            if shid `notElem` (station_dockingBay station)
-                                    then  (station_dockingBay station) ++ [shid] 
+                            if tsh `notElem` (station_dockingBay station)
+                                    then  (station_dockingBay station) ++ [tsh] 
                                     else station_dockingBay station }
+
+t :: Ships -> Stations -> (Ship -> Bool) ->
+        ( (TVar Ship) -> (TVar Station) -> STM () ) -> STM ()
+t tships tstations dockCheck dockFn = do
+    ships <- readTVar tships
+    stations <- readTVar tstations
+    needDocking <- filterM (\ship -> check ship dockCheck) (vals ships)
+    dockingStations <- forM needDocking (\ship -> check ship dockingSt)
+    let dockingPairs = zip needDocking dockingStations
+    mapM_ (\(ship,station) -> dockShSt ship station) dockingPairs
 
 processUndocking :: Ships -> Stations -> IO ()
 processUndocking tships tstations = atomically $ do
     ships <- readTVar tships
     stations <- readTVar tstations
-    needUndocking <- filterM (\k -> check ships k undocking) (keys ships)
-    undockingStations <- forM needUndocking (\k -> check ships k dockingStID)
+    needUndocking <- filterM (\ship -> check ship undocking) (vals ships)
+    undockingStations <- forM needUndocking (\ship -> check ship dockingSt)
     let undockingPairs = zip needUndocking undockingStations
-    mapM_ (\(shid,stid) -> undockShSt (ships ! shid) shid (stations ! stid) stid) undockingPairs
+    mapM_ (\(tsh,tst) -> undockShSt tsh tst) undockingPairs
 
-undockShSt :: (TVar Ship) -> Int -> (TVar Station) -> Int -> STM ()
-undockShSt tsh shid tst stid = do
+undockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
+undockShSt tsh tst = do
     ship <- readTVar tsh
     station <- readTVar tst
     let departure = V.fromList [0.1, 0.1, 0.1] -- magic constant FIXME
@@ -245,34 +252,33 @@ undockShSt tsh shid tst stid = do
                                      Idle 
     writeTVar tsh ship{ ship_navModule = newShipNavModule }
     writeTVar tst station{ station_dockingBay =
-                            P.filter (/= shid) (station_dockingBay station) }
+                            P.filter (/= tsh) (station_dockingBay station) }
 
---              Ship       - StationID
-setOnCourse :: (TVar Ship) -> StationID -> STM ()
-setOnCourse tsh stid = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse stid)
+setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
+setOnCourse tsh tst = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse tst)
 
-processAI :: ShipAI -> ShipID -> ReaderT World IO ShipAI -- this fn does more than its 
-processAI ai@(ShipAI (SGo stid) ais) shid = do           -- type signature shows, care
+processAI :: ShipAI -> (TVar Ship) -> ReaderT World IO ShipAI -- this fn does more than its 
+processAI ai@(ShipAI (SGo tst) ais) tsh = do           -- type signature shows, care
     world <- ask
     ships <- liftIO $ readTVarIO $  world_ships world
     stations <- liftIO $ readTVarIO $ world_stations world
-    satisfied <- liftIO $ readTVarIO (ships ! shid) >>= return . (flip dockedToSt stid)
+    satisfied <- liftIO $ readTVarIO tsh >>= return . (flip dockedToSt tst)
     if satisfied then return $ next ai
                  else return ai
-processAI ai@(ShipAI (SBuy bw ba) ais) shid = do
+processAI ai@(ShipAI (SBuy bw ba) ais) tsh = do
     world <- ask
-    sh <- liftIO $ (world_ships world) !!! shid
-    let stid = dockedStID sh
-    let oid = ship_owner sh
+    sh <- liftIO $ readTVarIO tsh
+    let tst = dockedSt sh
+    let to = ship_owner sh
 
-    cb <- liftIO $ canBuy oid shid stid world bw ba
-    if cb then do liftIO $ buy oid shid stid world bw ba
+    cb <- liftIO $ canBuy to tsh tst world bw ba
+    if cb then do liftIO $ buy to tsh tst world bw ba
                   return $ next ai
           else return ai
 processAI ai@(ShipAI (SSell sw sa) ais) shid = do
     world <- ask
     sh <- liftIO $ (world_ships world) !!! shid
-    let stid = dockedStID sh
+    let stid = dockedSt sh
     let oid = ship_owner sh
     let enoughWareP = enoughWare sw sa sh
 

@@ -3,7 +3,7 @@ module ShipsData where
 import AI
 import Navigation
 import Owners
-import Ships
+import ShipsAndStations
 import Wares
 import Wrappers
 

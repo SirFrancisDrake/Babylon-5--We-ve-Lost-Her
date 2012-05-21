@@ -1,28 +1,20 @@
 module AI where
 
+import Control.Concurrent.STM
+
 import Currency
-import Owners
-import Stations
+import DataTypes
+import Owner
 import Wares
 import Wrappers
 
-data ShipAI = ShipAI { zai_current :: SCommand
-                     , zai_list :: [SCommand]
-                     }
-            | SAIPlayer
-            | SAINone
-    deriving (Show)
-
-data SCommand = SGo StationID | SBuy Ware Amount | SSell Ware Amount
-    deriving (Eq, Show)
-
               -- where2buy   where2sell
-defSupplyAI :: StationID -> StationID -> Ware -> Amount -> ShipAI
-defSupplyAI bid sid w a = ShipAI (SGo bid)
-                                 [ (SBuy w a)
-                                 , (SGo sid)
-                                 , (SSell w a)
-                                 ]
+defSupplyAI :: (TVar Station) -> (TVar Station) -> Ware -> Amount -> ShipAI
+defSupplyAI btst stst w a = ShipAI (SGo btst)
+                                   [ (SBuy w a)
+                                   , (SGo stst)
+                                   , (SSell w a)
+                                   ]
 
 defaultAI = SAINone
 

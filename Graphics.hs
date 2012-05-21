@@ -1,7 +1,7 @@
 module Graphics where
 
 import Ships
-import Stations
+import ShipsAndStations
 import Wares
 
 class Render a where

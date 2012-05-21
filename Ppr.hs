@@ -37,7 +37,7 @@ instance Ppr [[String]] where
         let makeLength ln = (take ln) . ( flip (++) (repeat ' ') )
             uniLn = length . head $ matr
             lnth x matr = (last . sort $ map (length . (!! x)) matr) + 1
-            lns = map (\x -> lnth x matr) [0..(length matr - 1)]
+            lns = map (\x -> lnth x matr) [0..(length (head matr) - 1)]
             joinStr strs = join $ intersperse " | " strs
             header = joinStr $ zipWith makeLength lns (head matr)
             breaker = "\n\t" ++ (take (length header) $ repeat '-')

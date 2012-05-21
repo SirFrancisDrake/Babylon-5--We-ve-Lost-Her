@@ -3,8 +3,9 @@ module StationsData where
 import Data.IntMap
 
 import Currency
+import DataTypes
 import Navigation
-import Stations
+import ShipsAndStations
 import Stock
 import qualified Vector as V
 import Wares

@@ -13,7 +13,7 @@ import System.Console.Readline
 
 import AI
 import PersonalData
-import Ships
+import ShipsAndStations
 import ShipsData
 import StringFunctions
 import Owners

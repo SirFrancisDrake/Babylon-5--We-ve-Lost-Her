@@ -4,32 +4,35 @@ import Control.Concurrent.STM
 import Data.IntMap
 
 import Currency
+import DataTypes
 import IntMapAux
-import Owners
-import Stations
+import Owner
 import Wares
 import Wrappers
 
-modify :: IntMap (TVar a) -> Int -> (a -> a) -> STM ()
-modify objs oid fn =
-    let objVar = objs ! oid
-    in readTVar objVar >>= \p -> writeTVar objVar (fn p)
+-- DEPRECATED SINCE MAR 29th, 2011
+-- modify :: IntMap (TVar a) -> Int -> (a -> a) -> STM ()
+-- modify objs oid fn =
+--     let objVar = objs ! oid
+--     in readTVar objVar >>= \p -> writeTVar objVar (fn p)
+-- 
+-- check :: IntMap (TVar a) -> Int -> (a -> b) -> STM b
+-- check objs oid fn =
+--     let objVar = objs ! oid
+--     in readTVar objVar >>= return . fn
 
-check :: IntMap (TVar a) -> Int -> (a -> b) -> STM b
-check objs oid fn =
-    let objVar = objs ! oid
-    in readTVar objVar >>= return . fn
+modify :: (TVar a) -> (a -> a) -> STM ()
+modify t fn = readTVar t >>= (writeTVar t) . fn
+
+check :: (TVar a) -> (a -> b) -> STM b
+check t fn = readTVar t >>= return . fn
 
 -- example function
--- removes  ware   amount adds ware amount       to a list of stations     and station index
-exchange :: Ware -> Amount -> Ware -> Amount -> TVar (IntMap (TVar Station)) -> Int -> IO ()
-exchange fw fa sw sa stations stationID = atomically $ do
-    stationList <- readTVar stations
-    let stationTVar = stationList ! stationID
-    station <- readTVar stationTVar
-    let station' = removeWare fw fa station
-    let station'' = addWare sw sa station'
-    writeTVar stationTVar station''
+-- removes  ware   amount adds ware amount       to a station
+exchange :: Ware -> Amount -> Ware -> Amount -> (TVar Station) -> IO ()
+exchange rw ra aw aa station = atomically $ do
+    modify station (removeWare rw ra)
+    modify station (addWare aw aa)
 
 addInstance :: TVar (IntMap (TVar a)) -> a -> IO ()
 addInstance instances newInstance = atomically $ do

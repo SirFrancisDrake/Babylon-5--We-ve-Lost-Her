@@ -14,8 +14,7 @@ import ErrorMessages
 import InterfaceShow
 import Owners
 import Ppr
-import Ships
-import Stations
+import ShipsAndStations
 import Stock
 import StringFunctions
 import Wares
