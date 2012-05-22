@@ -1,19 +1,20 @@
 module ShipsData where
 
 import AI
+import DataTypes
 import Navigation
-import Owners
 import ShipsAndStations
+import ShipStats
 import Wares
 import Wrappers
 
 shipsDataDefShip = Ship "empty name"
-                        Rhino 
-                        (shipStats Rhino) 
-                        defaultNavModule 
+                        undefined 
+                        undefined 
+                        undefined 
                         defaultAI 
                         defaultCargo 
-                        defaultOwner
+                        undefined
 
 shStandardRhino :: Ship
 shStandardRhino = let thisShipStats = shipStats Rhino

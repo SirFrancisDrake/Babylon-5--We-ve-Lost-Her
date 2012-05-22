@@ -5,15 +5,18 @@ module Interface where
 
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Monad.Reader
 import Data.Char (toLower)
 import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)
 import System.Console.Readline
 
+import DataTypes
 import ErrorMessages
 import InterfaceShow
-import Owners
+import Owner
 import Ppr
+import Ships
 import ShipsAndStations
 import Stock
 import StringFunctions
@@ -142,12 +145,15 @@ recognizeGo _ _ = err_recognizeGoArguments
 printContext :: InterfaceState -> IO ()
 printContext (ContextSpace, ScreenNavigation) = 
     putStrLn "You're in open space."
-printContext ((ContextStationGuest stid), ScreenNavigation) = 
-    putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
-printContext ((ContextStationOwner stid), ScreenNavigation) = 
-    putStrLn $ "You're on a station with ID " ++ show stid -- FIXME
-printContext ((ContextShipGuest shid), ScreenNavigation) = 
-    putStrLn $ "You're on a ship with ID " ++ show shid -- FIXME
+printContext ((ContextStationGuest tst), ScreenNavigation) = 
+    readTVarIO tst >>= \st ->
+    putStrLn $ "You're on a station named " ++ (station_name st) -- FIXME
+printContext ((ContextStationOwner tst), ScreenNavigation) = 
+    readTVarIO tst >>= \st ->
+    putStrLn $ "You're on a station named " ++ (station_name st) -- FIXME
+printContext ((ContextShipGuest tsh), ScreenNavigation) = 
+    readTVarIO tsh >>= \sh ->
+    putStrLn $ "You're on a ship named " ++ (ship_name sh) -- FIXME
 printContext _ = return ()
 
 data UserResult = URSuccess
@@ -220,22 +226,25 @@ getUserCommand istate = do
                          else return (cmd, False)
 
 executeUserCommand :: (UserCommand,UserCommandArgs) -> InterfaceState 
-                                -> World -> IO (UserResult, InterfaceState)
-executeUserCommand (UCStationInfo,_) istate w = do
-    stid <- (world_ships w) !!! 0 >>= return . dockedStID
-    st <- (world_stations w) !!! stid
+                                -> ReaderT World IO (UserResult, InterfaceState)
+executeUserCommand (UCStationInfo,_) istate = do
+    w <- ask
+    st <- ((world_ships w) !!! 0) >>= return . dockedSt
     return (URAnswer (contextShow istate st), istate)
 
-executeUserCommand (UCCharacterInfo,_) istate w = do
+executeUserCommand (UCCharacterInfo,_) istate = do
+    w <- ask
     o <- (world_owners w) !!! 0
     let nistate = interface_character istate
     return (URAnswer (contextShow nistate o), nistate)
 
-executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCList,_) istate@(ContextStationGuest stid, ScreenTrade) = do
+   w <- ask
    st <- (world_stations w) !!! stid
    return (URAnswer (pprShow $ filterTrading $ station_stock st), istate)
 
-executeUserCommand (UCList,_) istate@(ContextSpace, ScreenNavigation) w = do
+executeUserCommand (UCList,_) istate@(ContextSpace, ScreenNavigation) = do
+    w <- ask
     let vals imap = map ((!) imap) (keys imap)
     -- let's see if you're smart enough to digest this one:
     sts <- readTVarIO (world_stations w) >>= \imap -> sequence
@@ -245,27 +254,30 @@ executeUserCommand (UCList,_) istate@(ContextSpace, ScreenNavigation) w = do
     let newPairs = map (\(a,b) -> "\t" ++ show a ++ "    " ++ station_name b ++ "\n") sts
     return (URAnswer (concat $ header:newPairs), istate)
 
-executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) w = do
+executeUserCommand (UCUndock,_) istate@(ContextStationGuest stid, ScreenNavigation) = do
+    w <- ask
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
    shid <- getOwnerShipID w
    tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
    atomically $ undockShSt tsh shid tst stid
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
-executeUserCommand (UCUndock,_) istate@(ContextStationOwner stid, ScreenNavigation) w = do
+executeUserCommand (UCUndock,_) istate@(ContextStationOwner stid, ScreenNavigation) = do
+   w <- ask
    tst <- readTVarIO (world_stations w) >>= \imapst -> return $ imapst ! stid
    shid <- getOwnerShipID w
    tsh <- readTVarIO (world_ships w) >>= \imapsh -> return $ imapsh ! shid
    atomically $ undockShSt tsh shid tst stid
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
-executeUserCommand (UCGoTo, UCAGoTo stid) istate@(ContextSpace, ScreenNavigation) w = do
+executeUserCommand (UCGoTo, UCAGoTo stid) istate@(ContextSpace, ScreenNavigation) = do
+   w <- ask
    getOwnerShipT w >>= \sh -> atomically (setOnCourse sh stid)
    return (URSuccess, (ContextSpace, ScreenNavigation))
 
-executeUserCommand (UCExit,_) istate _ = return (URSuccess, istate)
-executeUserCommand (UCBack,_) istate _ = return (URSuccess, interface_back istate)
-executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) w = do
+executeUserCommand (UCExit,_) istate = return (URSuccess, istate)
+executeUserCommand (UCBack,_) istate = return (URSuccess, interface_back istate)
+executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) = do
    st <- (world_stations w) !!! stid
    let stStock = "\nStation stock is:\n" ++ (pprShow $ station_stock st)
    o <- getOwner w
@@ -274,15 +286,15 @@ executeUserCommand (UCTrade,_)  istate@(ContextStationGuest stid, _) w = do
    let shCargo = "\nYour ship's cargo bay is:\n" ++ (show $ ship_cargo sh)
    return (URAnswer (stStock ++ "\n" ++ budget ++ "\n" ++ shCargo) , interface_trade istate)
 
-executeUserCommand (UCNavigation,_) istate _ = return (URSuccess, interface_navigation istate)
+executeUserCommand (UCNavigation,_) istate = return (URSuccess, interface_navigation istate)
 
-executeUserCommand (UCBuy, UCATrade bw ba) istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCBuy, UCATrade bw ba) istate@(ContextStationGuest stid, ScreenTrade) = do
     applyTradeFn canBuy buy stid w bw ba >>= \r -> return (r, istate)
 
-executeUserCommand (UCSell, UCATrade sw sa) istate@(ContextStationGuest stid, ScreenTrade) w = do
+executeUserCommand (UCSell, UCATrade sw sa) istate@(ContextStationGuest stid, ScreenTrade) = do
     applyTradeFn canSell sell stid w sw sa >>= \r -> return (r, istate)
 
-executeUserCommand _ _ _ = undefined
+executeUserCommand _ _ = undefined
 
 -- Try to write down type declaration of this one. The answer can be found in Styleguide.lhs
 applyTradeFn pred mod stid world w a = do

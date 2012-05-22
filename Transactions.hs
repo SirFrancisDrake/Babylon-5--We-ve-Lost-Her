@@ -40,6 +40,12 @@ addInstance instances newInstance = atomically $ do
     newInstanceTVar <- newTVar newInstance
     writeTVar instances $ insertMax newInstanceTVar instancesMap
 
+addInstanceTo :: TVar (IntMap (TVar a)) -> a -> Int -> IO ()
+addInstanceTo instances newInstance i = atomically $ do
+    instancesMap <- readTVar instances
+    newInstanceTVar <- newTVar newInstance
+    writeTVar instances $ insert 0 newInstanceTVar instancesMap
+
 listInstanceIDs :: TVar (IntMap (TVar a)) -> IO ()
 listInstanceIDs instances = do
     instanceList <- readTVarIO instances

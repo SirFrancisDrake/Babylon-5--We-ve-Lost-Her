@@ -122,7 +122,7 @@ instance ContextualShow Station where
     contextShow _ _ = undefined
     
 instance Show (Station -> Station) where
-    show _ = ""
+    show _ = "some (Station -> Station)"
 
 instance WareOps Station where
     addWare w a st@Station{ station_stock = stock } = st{ station_stock = addWare w a stock}

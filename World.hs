@@ -21,11 +21,11 @@ import Navigation
 import Owner
 import Ships
 import ShipsAndStations
-import StationsData
 import Stock
 import Transactions
 import qualified Vector as V
 import Wares
+import WorldGenerator
 import Wrappers
 
 -- File contents, [INDEX] stands for `search for the bracketed word 
@@ -54,21 +54,10 @@ import Wrappers
 
 makeNewWorld :: Owner -> Ship -> IO World
 makeNewWorld owner ship = do
-    tStations <- newTVarIO empty
-    atomically $ intMapToTVarIntMap defaultStations >>= writeTVar tStations
-
-    tShips <- newTVarIO empty
-    addInstance tShips ship -- adds the player character's ship
-    --mapM_ (addInstance tShips) (vals defaultShips)
-
-    tOwners <- newTVarIO empty
-    addInstance tOwners owner -- adds the player character
-    --mapM_ (addInstance tOwners) (vals defaultOwners)
-
-    fillOwnedShips tShips tOwners -- adds owned ships IDs to owner_shipsOwned
-    dockMissing tShips tStations -- docks the ships that start docked
-
-    return $ World tStations tShips tOwners
+    w <- atomically $ generateWorld
+    addInstanceTo (world_owners w) owner 0
+    addInstanceTo (world_ships w) ship 0
+    return w
 
 -- this fn also exists in WorldGenerator.hs FIXME    
 intMapToTVarIntMap :: IntMap a -> STM (IntMap (TVar a))
@@ -174,22 +163,6 @@ cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> 
                                  mapM_ (\k -> process (imap ! k)) (keys imap)
 
-fillOwnedShips :: Ships -> Owners -> IO ()
-fillOwnedShips sh o = atomically $ do
-    ships <- readTVar sh
-    pairs <- mapM readTVar (shVals ships) >>= 
-                        return . (zip (shKeys ships)) . (P.map ship_owner) 
-    owners <- readTVar o
-    mapM_ (\(sid,oid) -> readTVar (owners ! oid) >>= \own ->
-              writeTVar (owners ! oid) own{ owner_shipsOwned = 
-                if sid `notElem` (owner_shipsOwned own) then
-                                                owner_shipsOwned own ++ [sid]
-                                                        else
-                                                owner_shipsOwned own})
-          pairs
-    where shKeys ships = P.map fst (toList ships)
-          shVals ships = P.map snd (toList ships)
-    
 -- Appendix-like remain. I let it stay for clearness its name provides just once
 dockMissing :: Ships -> Stations -> IO ()
 dockMissing = processDocking
@@ -248,61 +221,20 @@ undockShSt tsh tst = do
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse tsh tst = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse tst)
 
-processAI :: ShipAI -> (TVar Ship) -> ReaderT World IO ShipAI -- this fn does more than its 
-processAI ai@(ShipAI (SGo tst) ais) tsh = do           -- type signature shows, care
-    world <- ask
-    ships <- liftIO $ readTVarIO $  world_ships world
-    stations <- liftIO $ readTVarIO $ world_stations world
-    satisfied <- liftIO $ readTVarIO tsh >>= return . (flip dockedToSt tst)
-    if satisfied then return $ next ai
-                 else return ai
-processAI ai@(ShipAI (SBuy bw ba) ais) tsh = do
-    world <- ask
-    sh <- liftIO $ readTVarIO tsh
-    let tst = dockedSt sh
-    let to = ship_owner sh
-
-    cb <- liftIO $ canBuy to tsh tst world bw ba
-    if cb then do liftIO $ buy to tsh tst world bw ba
-                  return $ next ai
-          else return ai
-processAI ai@(ShipAI (SSell sw sa) ais) shid = do
-    world <- ask
-    sh <- liftIO $ (world_ships world) !!! shid
-    let stid = dockedSt sh
-    let oid = ship_owner sh
-    let enoughWareP = enoughWare sw sa sh
-
-    cs <- liftIO $ canSell oid shid stid world sw sa
-
-    if cs then do liftIO $ sell oid shid stid world sw sa
-                  return $ next ai
-          else if enoughWareP then return $ next ai -- if AI doesn't have the cargo,
-                              else return ai -- it should move on to its next task
-                       -- otherwise it should wait for station to get enough money
-processAI _ _ = undefined
-
-canBuy :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO Bool
-canBuy oid shid stid w bw ba = do
-    sh <- (world_ships w) !!! shid
-    st <- (world_stations w) !!! stid
-    o <- (world_owners w) !!! oid
-
+canBuy :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO Bool
+canBuy to tsh tst bw ba = do
+    sh <- readTVarIO tsh
+    st <- readTVarIO tst
+    o <- readTVarIO to
     let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
     let enoughMoneyP = owner_money o >= stockSellPrice st bw * fromIntegral ba
     let enoughWareP = enoughWare bw ba st
-
     return $ and [enoughSpaceP, enoughMoneyP, enoughWareP] 
 
-buy :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO ()
-buy oid shid stid w bw ba = do
-    st <- (world_stations w) !!! stid
-
-    tsh <- readTVarIO (world_ships w) >>= \i -> return $ i ! shid
-    tst <- readTVarIO (world_stations w) >>= \i -> return $ i ! stid
-    to <- readTVarIO (world_owners w) >>= \i ->  return $i ! oid
-
-    cb <- canBuy oid shid stid w bw ba
+buy :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO ()
+buy to tsh tst bw ba = do
+    st <- readTVarIO tst
+    cb <- canBuy to tsh tst bw ba
 
     if cb then atomically $ do
             stmRemoveWare bw ba tst
@@ -311,25 +243,20 @@ buy oid shid stid w bw ba = do
             stmAddMoney (stockSellPrice st bw * fromIntegral ba) tst
           else return ()
 
-canSell :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO Bool
-canSell oid shid stid w sw sa = do
-    sh <- (world_ships w) !!! shid
-    st <- (world_stations w) !!! stid
-
+canSell :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO Bool
+canSell to tsh tst sw sa = do
+    o <- readTVarIO to
+    sh <- readTVarIO tsh
+    st <- readTVarIO tst
     let enoughMoneyP = station_money st >= stockBuyPrice st sw * fromIntegral sa
     let enoughWareP = enoughWare sw sa sh
 
     return $ and [enoughMoneyP, enoughWareP] 
 
-sell :: OwnerID -> ShipID -> StationID -> World -> Ware -> Amount -> IO ()
-sell oid shid stid w sw sa = do
-    st <- (world_stations w) !!! stid
-
-    tsh <- readTVarIO (world_ships w) >>= \i -> return $ i ! shid
-    tst <- readTVarIO (world_stations w) >>= \i -> return $ i ! stid
-    to <- readTVarIO (world_owners w) >>= \i ->  return $i ! oid
-
-    cs <- canSell oid shid stid w sw sa
+sell :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO ()
+sell to tsh tst sw sa = do
+    st <- readTVarIO tst
+    cs <- canSell to tsh tst sw sa
 
     if cs then atomically $ do
             stmRemoveWare sw sa tsh

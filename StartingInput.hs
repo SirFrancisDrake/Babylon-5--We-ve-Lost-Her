@@ -12,11 +12,12 @@ import Data.Maybe (fromJust, isJust)
 import System.Console.Readline
 
 import AI
+import DataTypes
 import PersonalData
 import ShipsAndStations
 import ShipsData
 import StringFunctions
-import Owners
+import Owner
 import VariousFns
 
 debStartingInput :: IO StartingInput -- FIXME remove this debug fn when Interface is fully tested
@@ -45,7 +46,7 @@ genStartingInput name race career shipName = ( (genOwner name race career)
 genOwner :: CharName -> Race -> Career -> Owner
 genOwner name race career = Owner name
                                   [] -- stations owned
-                                  [0] -- ships owned
+                                  [] -- ships owned
                                   (Person race career) 
                                   (startingMoney race career)
 
@@ -59,7 +60,6 @@ fetchShip Narn Military = shStandardLondo
 
 genShip :: ShipName -> Race -> Career -> Ship
 genShip n r c = (fetchShip r c){ ship_name = n
-                               , ship_owner = 0
                                , ship_AI = SAIPlayer
                                }
                                

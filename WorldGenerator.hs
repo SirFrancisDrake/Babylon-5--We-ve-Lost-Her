@@ -1,6 +1,6 @@
 
 module WorldGenerator
-( makeNewWorld
+( generateWorld
 ) where
 
 import Control.Concurrent.STM
@@ -14,11 +14,11 @@ import Data.Everything
 import DataTypes
 import IntMapAux
 
-makeNewWorld :: STM World
-makeNewWorld = makeNewWorldFrom startingRaces
+generateWorld :: STM World
+generateWorld = generateWorldFrom startingRaces
 
-makeNewWorldFrom :: [StoredRace] -> STM World
-makeNewWorldFrom srs = do
+generateWorldFrom :: [StoredRace] -> STM World
+generateWorldFrom srs = do
     tsrs <- mapM makeRace srs
     let appendTriples (a1, a2, a3) (b1, b2, b3) = (a1 ++ b1, a2 ++ b2, a3 ++ b3)
     let (towners, tships, tstations) = foldr appendTriples ([],[],[]) tsrs

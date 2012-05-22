@@ -18,29 +18,6 @@ import qualified Vector as V (fromList)
 import Wares
 import Wrappers
 
--- defaultShips = I.fromList $ zip [1..] 
---                                 [ rimbauld
---                                 , goldenHind
---                                 ]
--- 
--- rimbauld :: Ship
--- rimbauld = defaultShip{ ship_name = "Rimbauld" } -- 1 for Helen Ripley CARE
--- 
--- goldenHind :: Ship
--- goldenHind = defaultShip { ship_name = "Golden Hind" } -- 1 for Helen Ripley CARE
--- 
--- makeDefaultShip :: STM (TVar Owner, TVar Ship)
--- makeDefaultShip = do
---     emptyOwner <- newTVar $ Owner "" [] [] (Person Human Merchant) 0
---     defaultShip <- newTVar $ Ship   "empty name"
---                                     defaultShipClass 
---                                     (shipStats defaultShipClass) 
---                                     defaultNavModule 
---                                     SAINone
---                                     defaultCargo 
---                                     emptyOwner
---     (emptyOwner, defaultShip)
-
 defaultNavModule = NavModule (SNPSpace $ Space (V.fromList [0,0,0]) Normalspace) Idle
 
 defaultShipClass = Rhino
