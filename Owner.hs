@@ -8,6 +8,9 @@ import InterfaceShow
 import PersonalData
 import Wrappers
 
+instance Show Owner where
+    show t = show (owner_name t)
+
 instance ContextualShow Owner where
     contextShow (c, ScreenCharacter) o = "The main character.\nName: " ++ owner_name o
         ++ "\n" ++ contextShow (c, ScreenCharacter) (owner_personalInfo o)

@@ -31,8 +31,9 @@ import Wrappers
 -- File contents, [INDEX] stands for `search for the bracketed word 
 --                                  to get to the section mentioned`
 --
--- [WORLD] - World data type, function for creating it,
---           wrappers for `global` IntMaps and some auxiliary functions
+-- [WORLD] - World data type has been moved to DataTypes, 
+--           function for world-making are in WorldGenerator.hs
+--           wrappers for `global` IntMaps and some auxiliary functions are still here
 --
 -- [GLOBTVAR] - functions for dealing with stuff inside the `global` IntMaps
 --              quite rarely used, tbh, but possibly useful
@@ -50,16 +51,6 @@ import Wrappers
 
 -- SECTION BREAK
 -- [WORLD] -- see section description in the contents above
-
-data World = World
-    { world_stations :: TVar (IntMap (TVar Station)) 
-    , world_ships :: TVar (IntMap (TVar Ship)) 
-    , world_owners :: TVar (IntMap (TVar Owner)) 
-    } deriving ()
-
-type Owners = TVar (IntMap (TVar Owner))
-type Ships = TVar (IntMap (TVar Ship))
-type Stations = TVar (IntMap (TVar Station))
 
 makeNewWorld :: Owner -> Ship -> IO World
 makeNewWorld owner ship = do
@@ -79,7 +70,7 @@ makeNewWorld owner ship = do
 
     return $ World tStations tShips tOwners
 
-    
+-- this fn also exists in WorldGenerator.hs FIXME    
 intMapToTVarIntMap :: IntMap a -> STM (IntMap (TVar a))
 intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
                          where keys = P.map fst (toList ias)

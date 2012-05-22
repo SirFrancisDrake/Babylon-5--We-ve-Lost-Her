@@ -35,3 +35,18 @@ centauriOwner = Owner
 
 
 -- League of Non-Allied Worlds
+
+-- Other races
+triOptimumOwner = Owner
+            "TriOptimum Corp."
+            []
+            []
+            (Nation 0)
+            7
+
+gibarianOwner = Owner
+            "Gibarian Inc."
+            []
+            []
+            (Nation 1)
+            8

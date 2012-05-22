@@ -5,6 +5,7 @@ module DataTypes where
 
 import Control.Concurrent.STM
 import Data.Function (on)
+import Data.IntMap hiding (fromList, map)
 
 import Currency
 import InterfaceShow
@@ -88,6 +89,7 @@ data ShipClass = Liandra -- small Anla'Shok vessel
                | Hel -- small minbari fighter-transport
                | GQuan -- small narn transport
                | Londo -- small narn fighter-transport
+               | Sharlin -- Large Minbari War Cruiser
     deriving (Eq, Show)
 
 instance WareOps Ship where
@@ -102,8 +104,8 @@ data Station = Station
     , station_position :: NavPosition
     , station_stock :: Stock
     , station_money :: Money
-    , station_dockingBay :: [(TVar Ship)]
-    , station_owner :: String
+    , station_dockingBay :: [ TVar Ship ]
+    , station_owner :: TVar Owner
     , station_description :: String
     , station_stockChangers :: [(Station -> Station)] -- natural income
     }                                                 -- and production
@@ -134,3 +136,16 @@ instance MoneyOps Station where
 instance StockOps Station where
     stockBuyPrice Station{ station_stock = stock } w = stockBuyPrice stock w
     stockSellPrice Station{ station_stock = stock } w = stockSellPrice stock w
+
+-- World.hs
+
+data World = World
+    { world_stations :: TVar (IntMap (TVar Station)) 
+    , world_ships :: TVar (IntMap (TVar Ship)) 
+    , world_owners :: TVar (IntMap (TVar Owner)) 
+    } deriving ()
+
+type Owners = TVar (IntMap (TVar Owner))
+type Ships = TVar (IntMap (TVar Ship))
+type Stations = TVar (IntMap (TVar Station))
+

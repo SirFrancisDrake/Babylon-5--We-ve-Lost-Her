@@ -6,3 +6,4 @@ data ShipStats = ShipStats { shipStats_maxAccel :: Int
                            }
             deriving (Show)
 
+defaultStats = ShipStats 0 1 2

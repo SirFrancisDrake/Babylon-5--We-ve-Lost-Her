@@ -3,6 +3,7 @@ module Data.Everything where
 
 import Data.Owners
 import Data.Ships
+import Data.Stations
 import DataTypes
 
 data StoredRace = StoredRace
@@ -15,7 +16,13 @@ data StoredRace = StoredRace
 startingRaces :: [StoredRace]
 startingRaces =
   [ minbariS
+  , gibarianS
+  , triOptimumS
   ]
 
 minbariS :: StoredRace
-minbariS = StoredRace minbariOwner minbariShips [] -- tmp placeholder FIXME
+minbariS = StoredRace minbariOwner minbariShips minbariStations -- tmp placeholder FIXME
+
+triOptimumS = StoredRace triOptimumOwner [] triOptimumStations -- tmp placeholder FIXME
+
+gibarianS = StoredRace gibarianOwner [] gibarianStations -- tmp placeholder FIXME
