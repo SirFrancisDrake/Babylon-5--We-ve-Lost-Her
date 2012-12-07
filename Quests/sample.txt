@@ -1,0 +1,31 @@
+title: Sample quest
+starts when: (haven't been completed) && (enters citadel station)
+screens:
+1. Description: you are standing on a hill besides a tall and particularly beautiful white pine. Westwards from you there is a large white house.
+Actions:
+ - go west -> 2
+ - go east -> 3
+ - go north -> 3
+ - climb tree {if dex>4} -> 4
+              {else}     -> 4
+
+2. Description: you see an old house w\e. There's a barred door which you seem to be unable to open.
+   Description returned: the door is still closed.
+ - walk around -> 5
+ - break, bash -> 6
+ - knock -> 7
+
+3. Description: as you walk, you suddenly drop into a pitfall. Sharp spear-like bars penetrate your chest and you slowly bleed to a painful death.
+ - the end -> e
+
+4. Description: you start climbing the tree. At about 5' from the ground you realise there's no way to go up, and unfortunately you can't go down either. You sit there and wait for your inevitable death.
+ - the end -> e
+
+5. Description: you walk around the house only to notice that that door was the only entrance. No other doors or even windows seem to be located on the house walls. You find yourself returning to the starting point.
+ ~> 2-returned
+
+6. Description: as you strike the door, it slams wide open, and you can see a short man with a double-barreled shotgun pointed at your belly. As he shoots you, you begin to think that this wasn't a particularly good idea on your part.
+ - the end -> e
+
+7. Description: you knock the door, but nothing happens.
+ ~> 2-returned
