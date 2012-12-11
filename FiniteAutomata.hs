@@ -66,7 +66,7 @@ data FARunnerAnswer fa a = FARAError fa
     deriving (Eq)
 
 instance Monad (FARunnerAnswer fa) where
-    return a = FARAContinue fa a
+    return a = FARAContinue a
     (>>=) (FARAError fa) _ = FARAError fa
     (>>=) (FARAFinished fa) _ = FARAFinished fa
     (>>=) (FARAContinue fa a) f = f a

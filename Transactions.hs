@@ -3,23 +3,12 @@ module Transactions where
 import Control.Concurrent.STM
 import Data.IntMap
 
+import Auxiliary.IntMap
 import Currency
 import DataTypes
-import IntMapAux
 import Owner
 import Wares
 import Wrappers
-
--- DEPRECATED SINCE MAR 29th, 2011
--- modify :: IntMap (TVar a) -> Int -> (a -> a) -> STM ()
--- modify objs oid fn =
---     let objVar = objs ! oid
---     in readTVar objVar >>= \p -> writeTVar objVar (fn p)
--- 
--- check :: IntMap (TVar a) -> Int -> (a -> b) -> STM b
--- check objs oid fn =
---     let objVar = objs ! oid
---     in readTVar objVar >>= return . fn
 
 modify :: (TVar a) -> (a -> a) -> STM ()
 modify t fn = readTVar t >>= (writeTVar t) . fn

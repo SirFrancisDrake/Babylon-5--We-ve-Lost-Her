@@ -14,11 +14,11 @@ import qualified Data.IntMap as I (fromList)
 import Prelude hiding (length)
 
 import AI
+import Auxiliary.IntMap
 import Currency
 import DataTypes
 import ErrorMessages
 import InterfaceShow
-import IntMapAux
 import GlobalConst (tickGame)
 import Navigation
 import ShipStats

@@ -11,12 +11,12 @@ import Data.Char (isAlpha, isSpace, toLower)
 import Data.Maybe (fromJust, isJust)
 import System.Console.Readline
 
+import Auxiliary.StringFunctions
 import AI
 import DataTypes
 import PersonalData
 import ShipsAndStations
 import ShipsData
-import StringFunctions
 import Owner
 import VariousFns
 

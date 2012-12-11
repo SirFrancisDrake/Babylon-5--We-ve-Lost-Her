@@ -10,9 +10,9 @@ import Data.List (foldr)
 import Prelude hiding (map)
 import qualified Prelude as P (map)
 
+import Auxiliary.IntMap
 import Data.Everything
 import DataTypes
-import IntMapAux
 
 generateWorld :: STM World
 generateWorld = generateWorldFrom startingRaces

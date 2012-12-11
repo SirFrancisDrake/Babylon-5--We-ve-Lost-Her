@@ -1,9 +1,11 @@
 module World where
 
+import Control.Applicative ((<$>))
 import Control.Concurrent
 import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
 import Control.Monad.Reader
+import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, map)         -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
@@ -12,13 +14,16 @@ import Data.List (foldl') -- non-alphabetical so that I could write the above co
 import System.Posix (sleep) -- first non-cross-platform line in the code
 
 import AI
+import Auxiliary.IntMap
+import Auxiliary.StringFunctions
 import Currency
 import DataTypes
 import Data.Everything
 import GlobalConst
-import IntMapAux
 import Navigation
+import Interface
 import Owner
+import Parsable
 import Ships
 import ShipsAndStations
 import Stock
@@ -221,8 +226,69 @@ undockShSt tsh tst = do
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse tsh tst = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse tst)
 
-canBuy :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO Bool
-canBuy to tsh tst bw ba = do
+type NavContext = (TVar Ship, [TVar Station]) -- reachable stations FIXME
+
+runNavigation :: TVar Ship -> [TVar Station] -> IO ()
+runNavigation tsh tsts = runReaderT navigation (tsh, tsts)
+
+navigation :: ReaderT NavContext IO ()
+navigation = do
+  (tsh, tsts) <- ask
+  rsts <- liftIO $ atomically $ runReaderT reachableStations (tsh, tsts) -- GOTO BELOW
+  liftIO $ showNumberedList rsts
+  mtst <- getDestination
+  if isJust mtst 
+    then liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
+    else return ()
+  -- 10 :BELOW
+  -- 20 I failed to figure out how to make a type conversion:
+  -- 30 ReaderT NavContext STM [TVar Station] -> ReaderT NavContext IO [TVar Station]
+  -- 40 it looks like one should somehow lift ``atomically'' into the transformer,
+  -- 50 but I have yet to figure out how to do that. FIXME
+  -- 60 on the other hand, ((ReaderT Int IO) a) and ((ReaderT Int STM) a) are both
+  -- 70 different monads, so no kind of lift should work, and my workaround is viable
+
+showNumberedList :: [TVar Station] -> IO ()
+showNumberedList tsts = do
+  sts <- mapM readTVarIO tsts
+  let names = P.map station_name sts
+  let numbers  = P.map (\i -> show i ++ ". ") [1..(length names)]
+  let stations = zipWith (++) numbers names
+  let line = concatWith "\n" stations
+  putStrLn line
+
+reachableStations :: ReaderT NavContext STM [TVar Station]
+reachableStations = ask >>= return . snd --shouldn't mark ALL stations as reachable FIXME
+
+formParser :: [TVar Station] -> String -> Maybe (TVar Station)
+formParser = getParsedByNum
+
+getDestination :: ReaderT NavContext IO (Maybe (TVar Station))
+getDestination = do
+  (_, sts) <- ask
+  input <- liftIO getLine
+  return $ formParser sts input
+
+type TradeContext = (TVar Owner, TVar Ship, TVar Station)
+
+runTrade :: TVar Owner -> TVar Ship -> TVar Station -> IO ()
+runTrade to ts tst = runReaderT trade (to, ts, tst)
+
+trade :: ReaderT TradeContext IO ()
+trade = do
+  action <- liftIO getLine
+  case parseAnyOf allTradeActions action of
+    (Just (Buy  (w,a) )) -> buy  w a
+    (Just (Sell (w,a) )) -> sell w a
+    Nothing -> return ()
+  if action == "quit"
+    then return ()
+    else trade
+
+canBuy :: Ware -> Amount -> ReaderT TradeContext IO Bool
+canBuy bw ba = do
+  (to, tsh, tst) <- ask
+  liftIO $ do
     sh <- readTVarIO tsh
     st <- readTVarIO tst
     o <- readTVarIO to
@@ -231,11 +297,13 @@ canBuy to tsh tst bw ba = do
     let enoughWareP = enoughWare bw ba st
     return $ and [enoughSpaceP, enoughMoneyP, enoughWareP] 
 
-buy :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO ()
-buy to tsh tst bw ba = do
-    st <- readTVarIO tst
-    cb <- canBuy to tsh tst bw ba
+buy :: Ware -> Amount -> ReaderT TradeContext IO ()
+buy bw ba = do
+  (to, tsh, tst) <- ask
+  st <- liftIO $ readTVarIO tst
+  cb <- canBuy bw ba
 
+  liftIO $
     if cb then atomically $ do
             stmRemoveWare bw ba tst
             stmAddWare bw ba tsh
@@ -243,8 +311,10 @@ buy to tsh tst bw ba = do
             stmAddMoney (stockSellPrice st bw * fromIntegral ba) tst
           else return ()
 
-canSell :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO Bool
-canSell to tsh tst sw sa = do
+canSell :: Ware -> Amount -> ReaderT TradeContext IO Bool
+canSell sw sa = do
+  (to, tsh, tst) <- ask
+  liftIO $ do
     o <- readTVarIO to
     sh <- readTVarIO tsh
     st <- readTVarIO tst
@@ -253,11 +323,13 @@ canSell to tsh tst sw sa = do
 
     return $ and [enoughMoneyP, enoughWareP] 
 
-sell :: (TVar Owner) -> (TVar Ship) -> (TVar Station) -> Ware -> Amount -> IO ()
-sell to tsh tst sw sa = do
-    st <- readTVarIO tst
-    cs <- canSell to tsh tst sw sa
+sell :: Ware -> Amount -> ReaderT TradeContext IO ()
+sell sw sa = do
+  (to, tsh, tst) <- ask
+  st <- liftIO $ readTVarIO tst
+  cs <- canSell sw sa
 
+  liftIO $
     if cs then atomically $ do
             stmRemoveWare sw sa tsh
             stmAddWare sw sa tst

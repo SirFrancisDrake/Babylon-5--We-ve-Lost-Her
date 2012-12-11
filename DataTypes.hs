@@ -7,9 +7,10 @@ import Control.Concurrent.STM
 import Data.Function (on)
 import Data.IntMap hiding (fromList, map)
 
+import Auxiliary.IntMap
+import Auxiliary.STM (liftToTVar)
 import Currency
 import InterfaceShow
-import IntMapAux
 import Navigation
 import PersonalData
 import ShipStats
@@ -82,14 +83,14 @@ data Ship = Ship
              }
         deriving ()
 
-data ShipClass = Liandra -- small Anla'Shok vessel
-               | Rhino -- Corvette-sized human freighter
+data ShipClass = Liandra   -- small Anla'Shok vessel
+               | Rhino     -- Corvette-sized human freighter
                | WhiteStar -- Large League cruiser
-               | Clark -- small human fighter-transport
-               | Hel -- small minbari fighter-transport
-               | GQuan -- small narn transport
-               | Londo -- small narn fighter-transport
-               | Sharlin -- Large Minbari War Cruiser
+               | Clark     -- small human fighter-transport
+               | Hel       -- small minbari fighter-transport
+               | GQuan     -- small narn transport
+               | Londo     -- small narn fighter-transport
+               | Sharlin   -- Large Minbari War Cruiser
     deriving (Eq, Show)
 
 instance WareOps Ship where
@@ -110,6 +111,13 @@ data Station = Station
     , station_stockChangers :: [(Station -> Station)] -- natural income
     }                                                 -- and production
     deriving ()
+
+stationNamePosPure :: Station -> ( String, NavPosition )
+stationNamePosPure st = ( station_name st, station_position st )
+
+stationNamePos :: (TVar Station) -> STM ( String, NavPosition )
+stationNamePos = liftToTVar stationNamePosPure  
+              -- liftToTVar :: (a -> b) -> TVar a -> STM b
 
 instance Eq Station where
     (==) = on (==) station_name

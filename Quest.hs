@@ -69,7 +69,12 @@ getAction qas = do
         Right r -> return (head $ filter (\a -> qa_cmd a == r) qas)
 
 takeAction :: QAction -> S.StateT Quest IO QStateID
-takeAction = undefined
+takeAction qa = do
+    quest <- get
+    let context = q_context quest
+    if qa_triggerWorks qa
+        then 
+        else
 
 getState :: QStateID -> State Quest QState
 getState qid = do

@@ -6,12 +6,13 @@ import Data.Function (on)
 import Data.List (foldl', intersperse, sort, sortBy)
 import Data.Monoid
 
-import StringFunctions
+import Auxiliary.StringFunctions
 import Wrappers
 
 data Ware = Books | CyberModules | Energy | Food | Fuel | Silicium | Supplies
     deriving (Enum, Eq, Show, Ord)
 
+allWares  = [Books .. Supplies]
 wareNames = map show [Books .. Supplies]
 
 standardPrice :: Ware -> Money

@@ -2,7 +2,7 @@ module InterfaceShow where
 
 import Data.List (sort)
 
-import StringFunctions
+import Auxiliary.StringFunctions
 import Wrappers
 
 -- A special Show class for pretty interface printing with relation

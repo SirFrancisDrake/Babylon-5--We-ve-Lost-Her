@@ -3,7 +3,8 @@ module Auxiliary.StringFunctions where
 import Control.Monad (join)
 import Data.List (inits, intersperse)
 import Data.Maybe (isJust, fromJust)
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec hiding (parse)
+import qualified Text.ParserCombinators.Parsec as P (parse)
 
 class Recognize a where
   recognize :: String -> Maybe a
@@ -13,7 +14,7 @@ class Parsable a where
 
 exhaustiveParse :: [Parser a] -> String -> Maybe a
 exhaustiveParse ps str =
-  let parseResults = map (\p -> parse p "" str) ps
+  let parseResults = map (\p -> P.parse p "" str) ps
       filterFn either = case either of
                           Left _  -> Nothing
                           Right a -> Just a
