@@ -20,3 +20,6 @@ import World
 -- 
 -- playerCycle :: World -> IO ()
 -- playerCycle w = interfaceCycle w startingIState
+
+-- for easy debugging
+magic = debStartingInput >>= uncurry makeNewWorld

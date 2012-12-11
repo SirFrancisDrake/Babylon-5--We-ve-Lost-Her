@@ -5,16 +5,25 @@ import DataTypes
 import Navigation
 import ShipsAndStations
 import ShipStats
+import Vector
 import Wares
 import Wrappers
 
+--TMP FIXME
+spaceN :: Double -> Double -> Double -> NavModule
+spaceN x y z = NavModule
+                (SNPSpace (Space (Vector3D x y z) Normalspace))
+                Idle
+
+defaultNavModule = spaceN 0.01 0.01 0.01
+
 shipsDataDefShip = Ship "empty name"
-                        undefined 
-                        undefined 
-                        undefined 
+                        (error "ShipsData.hs: undefined") 
+                        (error "ShipsData.hs: undefined") 
+                        defaultNavModule
                         defaultAI 
                         defaultCargo 
-                        undefined
+                        (error "ShipsData.hs: undefined")
 
 shStandardRhino :: Ship
 shStandardRhino = let thisShipStats = shipStats Rhino

@@ -45,6 +45,12 @@ dockingSt = dockingStNS . navModule_status . ship_navModule
             where dockingStNS (DockingToStation tst) = tst
                   dockingStNS _ = err_dockingStNotExist
 
+dockedM :: Ship -> Maybe (TVar Station)
+dockedM sh =
+  if docked sh 
+    then Just $ dockedSt sh
+    else Nothing
+
 docked :: Ship -> Bool
 docked s = dockedStNS (navModule_position $ ship_navModule s)
            where dockedStNS (DockedToStation _) = True

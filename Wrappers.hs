@@ -9,6 +9,9 @@ type OwnerID = Int
 -- Ships.hs
 type ShipID = Int
 
+-- Space.hs
+type SpaceDistance = Double
+
 -- Stations.hs
 type StationID = Int
 

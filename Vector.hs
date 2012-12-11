@@ -17,8 +17,8 @@ data Vector3D = Vector3D
 instance Num Vector3D where
     (Vector3D x1 y1 z1) + (Vector3D x2 y2 z2) = Vector3D (x1+x2) (y1+y2) (z1+z2)
     (-) a b = a + b * fromInteger (-1) -- for some very weird reason it's impossible to unadd Vec 0 0 0
-    abs (Vector3D x y z) = undefined
-    signum _ = undefined
+    abs (Vector3D x y z) = error "Vector.hs: Vector abs is forbidden"
+    signum _ = error "Vector.hs: Vector signum is forbidden"
     -- following 2 fns are there ONLY to write things like
     -- newPosition = oldPosition + velocity * numberOfTicks
     (*) (Vector3D x y z) (Vector3D x2 y2 z2) = Vector3D (x*x2) (y*y2) (z*z2)

@@ -20,4 +20,4 @@ lookupUnique a as = let filtered = toList $ filter (== a) as
                                          else Just $ snd $ head filtered
 
 vals :: IntMap a -> [a]
-vals = (map snd) . toList
+vals = elems

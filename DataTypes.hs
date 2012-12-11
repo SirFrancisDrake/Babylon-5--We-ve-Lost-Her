@@ -14,6 +14,7 @@ import InterfaceShow
 import Navigation
 import PersonalData
 import ShipStats
+import Space
 import Stock
 import Vector hiding (fromList)
 import qualified Vector as V (fromList)
@@ -83,6 +84,13 @@ data Ship = Ship
              }
         deriving ()
 
+instance SpaceObject Ship where
+  spacePosition sh =
+    let NavModule nmp _ = ship_navModule sh
+    in case nmp of
+         (SNPSpace v) -> v
+         otherwise -> error "Can't locate a docked ship"
+
 data ShipClass = Liandra   -- small Anla'Shok vessel
                | Rhino     -- Corvette-sized human freighter
                | WhiteStar -- Large League cruiser
@@ -118,6 +126,9 @@ stationNamePosPure st = ( station_name st, station_position st )
 stationNamePos :: (TVar Station) -> STM ( String, NavPosition )
 stationNamePos = liftToTVar stationNamePosPure  
               -- liftToTVar :: (a -> b) -> TVar a -> STM b
+
+instance SpaceObject Station where
+  spacePosition = station_position
 
 instance Eq Station where
     (==) = on (==) station_name

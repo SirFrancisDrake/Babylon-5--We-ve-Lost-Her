@@ -6,7 +6,7 @@ import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
 import Control.Monad.Reader
 import Data.Maybe (isJust, fromJust)
-import Data.IntMap hiding (filter, map)         -- to avoid confusion when
+import Data.IntMap hiding (filter, null, map)   -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
 import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes once
@@ -26,6 +26,7 @@ import Owner
 import Parsable
 import Ships
 import ShipsAndStations
+import Space
 import Stock
 import Transactions
 import qualified Vector as V
@@ -226,20 +227,87 @@ undockShSt tsh tst = do
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse tsh tst = readTVar tsh >>= (writeTVar tsh) . (flip setShipOnCourse tst)
 
-type NavContext = (TVar Ship, [TVar Station]) -- reachable stations FIXME
+runInterface :: World -> IO ()
+runInterface w = runReaderT interface w
 
-runNavigation :: TVar Ship -> [TVar Station] -> IO ()
-runNavigation tsh tsts = runReaderT navigation (tsh, tsts)
+-- How to get stations, owner and owner's ship from ReaderT World _ _:
+--
+-- tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
+-- to   <- liftIO $ readTVarIO (world_owners   w) >>= return . (\a -> a ! 0) -- FIXME
+-- tsh  <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+
+interface :: ReaderT World IO ()
+interface = do
+  liftIO showInterfaceOptions
+  undefined
+
+showInterfaceOptions :: IO ()
+showInterfaceOptions = showNumberedList (P.map fst interfaceOptions)
+
+interfaceOptions =
+  [ ("Navigation", runNavigationW)
+  , ("Trade", runTradeW)
+  , ("Exit", return ())
+  ]
+
+-- navigationOptions :: [( String, ReaderT World STM Bool, ReaderT World IO () )]
+-- navigationOptions =
+--   [ ("Dock"      , stationNearby, navDock)
+--   , ("Undock"    , docked       , navUndock)
+--   , ("Set course", not docked   , navSetCourse)
+--   ]
+
+stationNearby :: ReaderT World STM (Maybe (TVar Station))
+stationNearby = do
+  w <- ask
+  tsts <- lift $ readTVar (world_stations w) >>= return . vals
+  tsh <- lift $ readTVar (world_ships w) >>= \tshs -> return $ tshs ! 0
+  sh <- lift $ readTVar tsh
+  closeStations <- lift $ filterM (\tst -> readTVar tst >>= \st -> return $ spaceDistance sh st < 1) tsts
+  if null closeStations
+    then return Nothing
+    else return $ Just $ head closeStations
+
+-- runNavigation :: ReaderT World IO ()
+-- runNavigation = do
+--   options <- filterM (\(_,b,_) -> b) navigationOptions
+--   showOptions options
+--   input <- toLower <$> getLine
+--   switchOptions
+--   if input == "back"
+--     then return ()
+--     else runNavigation
+
+data NavContext = NavContext
+  { nc_ownerShip :: TVar Ship
+  , nc_allStations :: [TVar Station]
+  , nc_dockedTo :: Maybe (TVar Station)
+  }
+
+runNavigationW :: ReaderT World IO ()
+runNavigationW = do
+  w <- ask
+  tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
+  tsh  <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+  docked <- liftIO $ readTVarIO tsh >>= return . dockedM
+  lift $ runReaderT navigation (NavContext tsh tsts docked)
 
 navigation :: ReaderT NavContext IO ()
 navigation = do
-  (tsh, tsts) <- ask
-  rsts <- liftIO $ atomically $ runReaderT reachableStations (tsh, tsts) -- GOTO BELOW
-  liftIO $ showNumberedList rsts
+  navContext <- ask
+  let tsh = nc_ownerShip navContext
+  rsts <- liftIO $ atomically $ runReaderT reachableStations navContext -- GOTO BELOW
+  liftIO $ showNumberedStationList rsts
   mtst <- getDestination
   if isJust mtst 
-    then liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
-    else return ()
+    then do 
+      stName <- liftIO (readTVarIO (fromJust mtst) >>= return . station_name)
+      liftIO $ print $ "You've successfully chosen a destination. It would appear " ++
+                       "you're heading towards " ++ stName ++ " now."
+      liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
+    else do
+      liftIO $ print "Nothing really happened."
+      return ()
   -- 10 :BELOW
   -- 20 I failed to figure out how to make a type conversion:
   -- 30 ReaderT NavContext STM [TVar Station] -> ReaderT NavContext IO [TVar Station]
@@ -248,28 +316,46 @@ navigation = do
   -- 60 on the other hand, ((ReaderT Int IO) a) and ((ReaderT Int STM) a) are both
   -- 70 different monads, so no kind of lift should work, and my workaround is viable
 
-showNumberedList :: [TVar Station] -> IO ()
-showNumberedList tsts = do
-  sts <- mapM readTVarIO tsts
+stationNames :: [TVar Station] -> STM [String]
+stationNames tsts = do
+  sts <- mapM readTVar tsts
   let names = P.map station_name sts
+  return names
+
+showNumberedList :: [String] -> IO ()
+showNumberedList names = do
   let numbers  = P.map (\i -> show i ++ ". ") [1..(length names)]
   let stations = zipWith (++) numbers names
   let line = concatWith "\n" stations
   putStrLn line
 
+showNumberedStationList :: [TVar Station] -> IO ()
+showNumberedStationList tsts = do
+  names <- atomically $ stationNames tsts
+  showNumberedList names
+
 reachableStations :: ReaderT NavContext STM [TVar Station]
-reachableStations = ask >>= return . snd --shouldn't mark ALL stations as reachable FIXME
+reachableStations = ask >>= return . nc_allStations
+  --shouldn't mark ALL stations as reachable FIXME
 
 formParser :: [TVar Station] -> String -> Maybe (TVar Station)
 formParser = getParsedByNum
 
 getDestination :: ReaderT NavContext IO (Maybe (TVar Station))
 getDestination = do
-  (_, sts) <- ask
+  sts <- nc_allStations <$> ask
   input <- liftIO getLine
   return $ formParser sts input
 
 type TradeContext = (TVar Owner, TVar Ship, TVar Station)
+
+runTradeW :: ReaderT World IO ()
+runTradeW = do
+  w <- ask
+  to  <- liftIO $ readTVarIO (world_owners   w) >>= return . (\a -> a ! 0) -- FIXME
+  tsh <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+  tst <- liftIO $ readTVarIO tsh >>= return . dockedSt
+  lift $ runReaderT trade (to, tsh, tst)
 
 runTrade :: TVar Owner -> TVar Ship -> TVar Station -> IO ()
 runTrade to ts tst = runReaderT trade (to, ts, tst)
@@ -278,9 +364,13 @@ trade :: ReaderT TradeContext IO ()
 trade = do
   action <- liftIO getLine
   case parseAnyOf allTradeActions action of
-    (Just (Buy  (w,a) )) -> buy  w a
-    (Just (Sell (w,a) )) -> sell w a
-    Nothing -> return ()
+    (Just (Buy  (w,a) )) -> do
+      buy  w a
+      liftIO $ putStrLn $ "You buy " ++ show a ++ " of " ++ show w
+    (Just (Sell (w,a) )) -> do
+      sell w a
+      liftIO $ putStrLn $ "You sell " ++ show a ++ " of " ++ show w
+    Nothing -> trade
   if action == "quit"
     then return ()
     else trade
