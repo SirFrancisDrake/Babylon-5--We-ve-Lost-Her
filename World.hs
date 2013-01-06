@@ -5,6 +5,7 @@ import Control.Concurrent
 import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
 import Control.Monad.Reader
+import qualified Data.Map as M
 import Data.Maybe (isJust, fromJust)
 import Data.IntMap hiding (filter, null, map)   -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
@@ -15,7 +16,9 @@ import System.Posix (sleep) -- first non-cross-platform line in the code
 
 import AI
 import Auxiliary.IntMap
+import qualified Auxiliary.Map as M1
 import Auxiliary.StringFunctions
+import Auxiliary.Tuples
 import Currency
 import DataTypes
 import Data.Everything
@@ -250,23 +253,58 @@ interfaceOptions =
   , ("Exit", return ())
   ]
 
--- navigationOptions :: [( String, ReaderT World STM Bool, ReaderT World IO () )]
+navigationOptions :: M.Map String (ReaderT NavContext STM Bool, ReaderT NavContext IO ())
+navigationOptions = M.fromList
+  [ ("Dock"      , (stationNearby, navDock))
+  , ("Undock"    , (docked       , navUndock))
+  , ("Set course", (undocked     , navSetCourse))
+  ]
+
+-- navigationOptions :: [( String, ReaderT NavContext STM Bool, ReaderT NavContext IO () )]
 -- navigationOptions =
 --   [ ("Dock"      , stationNearby, navDock)
 --   , ("Undock"    , docked       , navUndock)
---   , ("Set course", not docked   , navSetCourse)
+--   , ("Set course", undocked     , navSetCourse)
 --   ]
 
-stationNearby :: ReaderT World STM (Maybe (TVar Station))
-stationNearby = do
+navigation :: ReaderT NavContext IO ()
+navigation = do
   w <- ask
-  tsts <- lift $ readTVar (world_stations w) >>= return . vals
-  tsh <- lift $ readTVar (world_ships w) >>= \tshs -> return $ tshs ! 0
+  newNavList' <- filterM (\(_,(b,_)) -> liftIO $ atomically $ runReaderT b w) (M.toList navigationOptions)
+  let newNavList = M.fromList (P.map (\(a,(_,c)) -> (a,c)) newNavList')
+  a <- liftIO $ getByNum (M.keys newNavList)
+  newNavList M.! a
+
+docked = ask >>= return . isJust . nc_dockedTo 
+undocked = docked >>= return . not
+
+navDock :: ReaderT NavContext IO ()
+navDock = do
+  nc@(NavContext tsh _ _) <- ask
+  tstm <- liftIO $ atomically $ runReaderT stationNearbyM nc
+  let tst = fromJust tstm
+  sh <- liftIO $ readTVarIO tsh
+  liftIO $ atomically $ writeTVar tsh (startDockingTo sh tst)
+
+navUndock :: ReaderT NavContext IO ()
+navUndock = do
+  (NavContext tsh _ _) <- ask
+  sh <- liftIO $ readTVarIO tsh
+  liftIO $ atomically $ writeTVar tsh (startUndocking sh)
+  
+stationNearbyM :: ReaderT NavContext STM (Maybe (TVar Station))
+stationNearbyM = do
+  nc <- ask
+  let tsts = nc_allStations nc
+  let tsh = nc_ownerShip nc 
   sh <- lift $ readTVar tsh
   closeStations <- lift $ filterM (\tst -> readTVar tst >>= \st -> return $ spaceDistance sh st < 1) tsts
   if null closeStations
     then return Nothing
     else return $ Just $ head closeStations
+
+stationNearby :: ReaderT NavContext STM Bool
+stationNearby = stationNearbyM >>= return . isJust
 
 -- runNavigation :: ReaderT World IO ()
 -- runNavigation = do
@@ -292,8 +330,8 @@ runNavigationW = do
   docked <- liftIO $ readTVarIO tsh >>= return . dockedM
   lift $ runReaderT navigation (NavContext tsh tsts docked)
 
-navigation :: ReaderT NavContext IO ()
-navigation = do
+navSetCourse :: ReaderT NavContext IO ()
+navSetCourse = do
   navContext <- ask
   let tsh = nc_ownerShip navContext
   rsts <- liftIO $ atomically $ runReaderT reachableStations navContext -- GOTO BELOW

@@ -1,4 +1,4 @@
-module ExtendedTuples where
+module Auxiliary.Tuples where
 
 frst (a,_,_) = a
 scnd (_,b,_) = b

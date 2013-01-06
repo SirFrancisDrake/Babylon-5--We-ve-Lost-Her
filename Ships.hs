@@ -47,12 +47,12 @@ dockingSt = dockingStNS . navModule_status . ship_navModule
 
 dockedM :: Ship -> Maybe (TVar Station)
 dockedM sh =
-  if docked sh 
+  if dockedP sh 
     then Just $ dockedSt sh
     else Nothing
 
-docked :: Ship -> Bool
-docked s = dockedStNS (navModule_position $ ship_navModule s)
+dockedP :: Ship -> Bool
+dockedP s = dockedStNS (navModule_position $ ship_navModule s)
            where dockedStNS (DockedToStation _) = True
                  dockedStNS _ = False
 
@@ -69,6 +69,14 @@ dockedToSt = dockedToStNS . navModule_position . ship_navModule
 setShipOnCourse :: Ship -> (TVar Station) -> Ship
 setShipOnCourse s tst = let (NavModule pos _) = ship_navModule s
                         in s{ ship_navModule = NavModule pos (MovingToStation tst) }
+
+startDockingTo :: Ship -> (TVar Station) -> Ship
+startDockingTo s tst = let (NavModule pos _) = ship_navModule s
+                       in s{ ship_navModule = NavModule pos (DockingToStation tst) }
+
+startUndocking :: Ship -> Ship
+startUndocking s  = let (NavModule pos _) = ship_navModule s
+                    in s{ ship_navModule = NavModule pos Undocking }
 
 ship_freeSpace :: Ship -> Weight
 ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (ship_cargo s)

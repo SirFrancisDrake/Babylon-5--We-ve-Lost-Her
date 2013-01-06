@@ -5,7 +5,7 @@ import Data.Function (on)
 import Data.List (delete, find)
 import Data.Maybe (fromJust, isJust)
 
-import ExtendedTuples
+import Auxiliary.Tuples
 
 type State = String
 type Pattern = String

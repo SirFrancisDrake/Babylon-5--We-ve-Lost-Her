@@ -1,5 +1,6 @@
 module Sample where
 
+import Auxiliary.Zipper
 import Q1
 
 quest_sample =

@@ -1,4 +1,6 @@
 
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Parsable where
 
 import qualified Data.Char as Ch (toLower)
@@ -13,6 +15,18 @@ import Wrappers
 
 toLower :: String -> String
 toLower = map Ch.toLower
+
+class ShowName a where
+  showName :: a -> String
+
+instance ShowName Station where
+  showName = station_name
+
+instance ShowName Ship where
+  showName = ship_name
+
+instance ShowName String where
+  showName = id
 
 class Parsable a where -- minimal sufficient declaration: getParser
   getParser      ::  a  -> Parser a          -- parser for a particular a
@@ -48,16 +62,46 @@ getParsedByNum as inp =
   -- I'm adding "\n" to both end of input and end of number representation
   -- to make sure parsec doesn't interpret "11" as "1". How do I do that right?
 
+getByStrNum :: (ShowName a, Parsable a) => [a] -> IO a
+getByStrNum as = do
+  showByNum as
+  let tryOnce = getLine >>= \inp ->
+                case getParsedByStrNum as inp of
+                  Just i -> return i
+                  Nothing -> putStr "Not a valid number. Try again: " >> tryOnce
+  tryOnce
+
+getByNum :: (ShowName a) => [a] -> IO a
+getByNum as = do
+  showByNum as
+  let tryOnce = getLine >>= \inp ->
+                case getParsedByNum as inp of
+                  Just i -> return i
+                  Nothing -> putStr "Not a valid number. Try again: " >> tryOnce
+  tryOnce
+
+showByStrNum :: (ShowName a) => [a] -> IO ()
+showByStrNum = showBy "Choose by item name or item number: "
+
+showByNum :: (ShowName a) => [a] -> IO ()
+showByNum = showBy "Choose by entering a number"
+
+showBy :: (ShowName a) => String -> [a] -> IO ()
+showBy str as = do
+  let nas = concat $ zipWith (\a b -> "\n" ++ show a ++ ". " ++ showName b) [1..] as
+  putStr str
+  putStrLn nas
+
 -- takes a number of items and an input string, and:
 -- 1) if an input string is an item index, returns the item
 -- 2) if an input string matches an item as a string exactly, returns the item
 -- 3) returns nothing
-getParsedStrNum :: [String] -> String -> Maybe String
-getParsedStrNum as inp = -- FIXME remove ``show i ++ "\n"'' redundancy
+getParsedByStrNum :: (ShowName a) => [a] -> String -> Maybe a
+getParsedByStrNum as inp = -- FIXME remove ``show i ++ "\n"'' redundancy
   let strNums = map (\i -> show i ++ "\n") [1..(length as)]
       pairs = zip strNums as
       numParsers = map (\(i,a) -> string i >> return a) pairs
-      strParsers = map (\s -> try (string $ toLower s ++ "\n") >> return s) as
+      strParsers = map (\s -> try (string $ toLower (showName s) ++ "\n") >> return s) as
       bigParser = foldParsers
       finalParser = (bigParser numParsers) <|> (bigParser strParsers)
   in case parse finalParser "" (toLower inp ++ "\n") of
@@ -66,7 +110,7 @@ getParsedStrNum as inp = -- FIXME remove ``show i ++ "\n"'' redundancy
 
 switchByStrNum :: [(String, a)] -> String -> Maybe a
 switchByStrNum ps inp =
-  case getParsedStrNum (map fst ps) inp of
+  case getParsedByStrNum (map fst ps) inp of
     Nothing -> Nothing
     Just a -> Just $ snd $ head $ (filter (\(b,_) -> b == a) ps)
 

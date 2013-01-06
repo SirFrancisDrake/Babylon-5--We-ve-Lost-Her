@@ -37,6 +37,15 @@ import Wrappers
 --     else putStrLn "Nope"
 --          getInput ics
 
+askPolitely :: String -> Parser a -> IO a
+askPolitely question p = do
+  putStrLn question
+  let tryOnce = getLine >>= \ans ->
+             case parse p "" ans of
+               Left err -> putStrLn "Failed to parse your input. Try again" >> tryOnce
+               Right a -> return a
+  tryOnce
+
 data TradeAction =
   Buy TradeArgs | Sell TradeArgs
   deriving (Show)

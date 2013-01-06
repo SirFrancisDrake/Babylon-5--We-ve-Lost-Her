@@ -23,7 +23,7 @@ import Wrappers
 
 -- AI.HS
 
-data ShipAI = ShipAI { zai_current :: SCommand
+data ShipAI = ShipAI { zai_current :: SCommand -- Why not Zipper SCommand?
                      , zai_list :: [SCommand]
                      }
             | SAIPlayer

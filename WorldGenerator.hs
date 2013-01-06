@@ -4,7 +4,6 @@ module WorldGenerator
 ) where
 
 import Control.Concurrent.STM
-
 import qualified Data.IntMap as I
 import Data.List (foldr)
 import Prelude hiding (map)
