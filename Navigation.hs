@@ -6,7 +6,10 @@ import Wrappers
 
 data NavPosition = Space { nav_pos_vec :: Vector3D
                          , nav_pos_type :: SpaceType }
-    deriving (Eq, Show)
+    deriving (Eq)
+
+instance Show NavPosition where
+  show (Space np t) = show t ++ ", " ++ show np
 
 data SpaceType = Normalspace
                | Hyperspace

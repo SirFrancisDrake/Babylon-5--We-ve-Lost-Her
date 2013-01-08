@@ -18,6 +18,7 @@ import AI
 import Auxiliary.IntMap
 import qualified Auxiliary.Map as M1
 import Auxiliary.StringFunctions
+import Auxiliary.STM
 import Auxiliary.Tuples
 import Currency
 import DataTypes
@@ -241,23 +242,30 @@ runInterface w = runReaderT interface w
 
 interface :: ReaderT World IO ()
 interface = do
-  liftIO showInterfaceOptions
-  undefined
+  w <- ask
+  newInterfaceList' <- filterM (\(_,(b,_)) -> liftIO $ atomically $ runReaderT b w) (M.toList interfaceOptions)
+  let newInterfaceList = M.fromList (P.map (\(a,(_,c)) -> (a,c)) newInterfaceList')
+  a <- liftIO $ getByNum (M.keys newInterfaceList)
+  liftIO $ putStrLn $ "\n" ++ "You've chosen to " ++ a ++ "."
+  newInterfaceList M.! a
 
 showInterfaceOptions :: IO ()
-showInterfaceOptions = showNumberedList (P.map fst interfaceOptions)
+showInterfaceOptions = showNumberedList (M.keys interfaceOptions)
 
-interfaceOptions =
-  [ ("Navigation", runNavigationW)
-  , ("Trade", runTradeW)
-  , ("Exit", return ())
+interfaceOptions :: M.Map String (ReaderT World STM Bool, ReaderT World IO ())
+interfaceOptions = M.fromList
+  [ ("Navigation", (return True ,runNavigationW))
+  , ("Trade"     , (dockedW     , runTradeW))
+  , ("Exit"      , (return True , return ()))
   ]
+
 
 navigationOptions :: M.Map String (ReaderT NavContext STM Bool, ReaderT NavContext IO ())
 navigationOptions = M.fromList
-  [ ("Dock"      , (stationNearby, navDock))
-  , ("Undock"    , (docked       , navUndock))
-  , ("Set course", (undocked     , navSetCourse))
+  [ ("Display coordinates", (return True  , navDisplay))
+  , ("Dock"               , (stationNearby, navDock))
+  , ("Undock"             , (docked       , navUndock))
+  , ("Set course"         , (undocked     , navSetCourse))
   ]
 
 -- navigationOptions :: [( String, ReaderT NavContext STM Bool, ReaderT NavContext IO () )]
@@ -267,16 +275,36 @@ navigationOptions = M.fromList
 --   , ("Set course", undocked     , navSetCourse)
 --   ]
 
+navDisplay :: ReaderT NavContext IO ()
+navDisplay = do
+  w <- ask
+  mtst <- liftIO $ atomically $ runReaderT stationNearbyM w
+  pos <- liftIO $ atomically $ liftToTVar spacePosition (nc_ownerShip w)
+  liftIO $ putStrLn $ "\nYour coordinates are: " ++ show pos
+  stName <- liftIO (readTVarIO (fromJust mtst) >>= return . station_name)
+  if isJust mtst then liftIO $ putStrLn $ "You're near a station: " ++ stName ++ "\n"
+                 else return ()
+  navigation
+
 navigation :: ReaderT NavContext IO ()
 navigation = do
   w <- ask
   newNavList' <- filterM (\(_,(b,_)) -> liftIO $ atomically $ runReaderT b w) (M.toList navigationOptions)
   let newNavList = M.fromList (P.map (\(a,(_,c)) -> (a,c)) newNavList')
   a <- liftIO $ getByNum (M.keys newNavList)
-  newNavList M.! a
+  liftIO $ putStrLn $ "\n" ++ "You've chosen to " ++ a ++ "."
+  newNavList M.! a -- FIXME FIRST THING
 
 docked = ask >>= return . isJust . nc_dockedTo 
 undocked = docked >>= return . not
+
+dockedW :: ReaderT World STM Bool
+dockedW = do
+  w <- ask
+  ships <- lift $ readTVar (world_ships w)
+  sh <- lift $ readTVar (ships ! 0)
+  return (isJust $ dockedM sh)
+undockedW = dockedW >>= return . not
 
 navDock :: ReaderT NavContext IO ()
 navDock = do
@@ -340,8 +368,8 @@ navSetCourse = do
   if isJust mtst 
     then do 
       stName <- liftIO (readTVarIO (fromJust mtst) >>= return . station_name)
-      liftIO $ print $ "You've successfully chosen a destination. It would appear " ++
-                       "you're heading towards " ++ stName ++ " now."
+      liftIO $ putStrLn $ "You've successfully chosen a destination. It would appear " ++
+                          "you're heading towards " ++ stName ++ " now."
       liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
     else do
       liftIO $ print "Nothing really happened."

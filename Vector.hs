@@ -12,7 +12,10 @@ data Vector3D = Vector3D
     { vec_x :: Double
     , vec_y :: Double
     , vec_z :: Double
-    } deriving (Eq, Show)
+    } deriving (Eq)
+
+instance Show Vector3D where
+  show (Vector3D x y z) = "(" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ ")"
 
 instance Num Vector3D where
     (Vector3D x1 y1 z1) + (Vector3D x2 y2 z2) = Vector3D (x1+x2) (y1+y2) (z1+z2)
