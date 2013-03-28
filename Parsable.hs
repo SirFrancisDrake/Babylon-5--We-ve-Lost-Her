@@ -116,11 +116,15 @@ switchByStrNum ps inp =
 
 -- parsable declarations are here, they're all pretty straightforward
 
+liftToParsable :: (a -> String) -> a -> Parser a
+liftToParsable fn a = (string $ toLower $ fn a) >> return a
+
 instance Parsable Ware where
-  getParser w = (string $ toLower $ show w) >> return w
+  getParser = liftToParsable show
 
 parserAmount :: Parser Amount
 parserAmount = many1 digit >>= return . read
 
-instance Parsable Station where
-  getParser st = (string $ toLower $ station_name st) >> return st
+-- instance Parsable Station where
+--   getParser st = (string $ toLower $ station_name st) >> return st
+--   getParser st = 

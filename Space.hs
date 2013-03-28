@@ -8,6 +8,10 @@ import Wrappers
 space_normalHyperCoeff = 100 -- ratio of distance conservation through hyperspace
 cf = space_normalHyperCoeff -- just a small alias
 
+toSpaceType :: SpaceType -> NavPosition -> NavPosition
+toSpaceType Normalspace = toNormal
+toSpaceType Hyperspace  = toHyper
+
 toNormal :: NavPosition -> NavPosition
 toNormal (Space v Hyperspace) = Space (v * fromIntegral cf) Normalspace
 toNormal (Space _ Normalspace) = err_cantJumpNormalToNormal

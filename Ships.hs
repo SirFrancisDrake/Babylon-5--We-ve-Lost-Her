@@ -40,6 +40,10 @@ docking s = dockingStNS (navModule_status $ ship_navModule s)
             where dockingStNS (DockingToStation _) = True
                   dockingStNS _ = False
 
+jumping :: Ship -> Bool
+jumping s = jumpingNS (navModule_status $ ship_navModule s)
+            where jumpingNS (Jumping _ _) = True
+
 dockingSt :: Ship -> (TVar Station)
 dockingSt = dockingStNS . navModule_status . ship_navModule
             where dockingStNS (DockingToStation tst) = tst

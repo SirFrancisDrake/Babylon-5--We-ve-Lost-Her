@@ -11,6 +11,7 @@ import Auxiliary.IntMap
 import Auxiliary.STM (liftToTVar)
 import Currency
 import InterfaceShow
+import Jumpgates
 import Navigation
 import PersonalData
 import ShipStats
@@ -71,7 +72,13 @@ data NavStatus = Idle
                | MovingToSpace { navMoving_velocity :: Vector3D
                                , navMoving_target :: Vector3D }
                | MovingToStation (TVar Station)
+               | MovingToJumpgate Jumpgate
+               | Jumping JumpEngine SpaceType
     deriving ()
+
+data JumpEngine = JE_Jumpgate Jumpgate
+                | JE_Self
+  deriving ()
 
 data Ship = Ship
              { ship_name :: String
