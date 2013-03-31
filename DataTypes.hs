@@ -72,7 +72,6 @@ data NavStatus = Idle
                | MovingToSpace { navMoving_velocity :: Vector3D
                                , navMoving_target :: Vector3D }
                | MovingToStation (TVar Station)
-               | MovingToJumpgate Jumpgate
                | Jumping JumpEngine SpaceType
     deriving ()
 

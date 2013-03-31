@@ -16,6 +16,10 @@ randomizeAround :: NavPosition -> Double -> IO NavPosition
 randomizeAround (Space (Vector3D x y z) t) _ = return $
   Space (Vector3D (x + 1/10) (y + 1/10) (z + 1/10)) t
 
+departureAround :: NavPosition -> NavPosition
+departureAround (Space (Vector3D x y z) t) =
+  Space (Vector3D (x + 1/10) (y + 1/10) (z + 1/10)) t
+
 jump :: NavPosition -> SpaceType -> IO NavPosition
 jump entryPoint stype = 
   randomizeAround (toSpaceType stype entryPoint) const_jg_exit_radius

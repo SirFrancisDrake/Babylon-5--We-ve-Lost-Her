@@ -180,60 +180,40 @@ dockMissing = processDocking
 
 processDocking :: Ships -> Stations -> IO ()
 processDocking tships tstations = atomically $ do
-    ships <- readTVar tships
-    stations <- readTVar tstations
-    needDocking <- filterM (\ship -> check ship docking) (vals ships)
-    dockingStations <- forM needDocking (\ship -> check ship dockingSt)
-    let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(ship,station) -> dockShSt ship station) dockingPairs
+  needDocking <- filterIT docking tships
+  dockingStations <- mapM (checkT dockingSt) needDocking
+  mapM_ (uncurry dockShSt) (zip needDocking dockingStations)
 
 dockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
 dockShSt tsh tst = do
-    ship <- readTVar tsh
-    writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle }
-    station <- readTVar tst
-    writeTVar tst station{ station_dockingBay =
-                            if tsh `notElem` (station_dockingBay station)
-                                    then  (station_dockingBay station) ++ [tsh] 
-                                    else station_dockingBay station }
-
-t :: Ships -> Stations -> (Ship -> Bool) ->
-        ( (TVar Ship) -> (TVar Station) -> STM () ) -> STM ()
-t tships tstations dockCheck dockFn = do
-    ships <- readTVar tships
-    stations <- readTVar tstations
-    needDocking <- filterM (\ship -> check ship dockCheck) (vals ships)
-    dockingStations <- forM needDocking (\ship -> check ship dockingSt)
-    let dockingPairs = zip needDocking dockingStations
-    mapM_ (\(ship,station) -> dockShSt ship station) dockingPairs
+  ship <- readTVar tsh
+  writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle }
+  station <- readTVar tst
+  writeTVar tst station{ station_dockingBay =
+                          if tsh `notElem` (station_dockingBay station)
+                            then (station_dockingBay station) ++ [tsh] 
+                            else station_dockingBay station }
 
 processUndocking :: Ships -> Stations -> IO ()
 processUndocking tships tstations = atomically $ do
-    ships <- readTVar tships
-    stations <- readTVar tstations
-    needUndocking <- filterM (\ship -> check ship undocking) (vals ships)
-    undockingStations <- forM needUndocking (\ship -> check ship dockingSt)
-    let undockingPairs = zip needUndocking undockingStations
-    mapM_ (\(tsh,tst) -> undockShSt tsh tst) undockingPairs
+  needUndocking <- filterIT undocking tships
+  undockingStations <- mapM (checkT dockingSt) needUndocking
+  mapM_ (uncurry undockShSt) (zip needUndocking undockingStations)
 
 undockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
 undockShSt tsh tst = do
-    ship <- readTVar tsh
-    station <- readTVar tst
-    let departure = V.fromList [0.1, 0.1, 0.1] -- magic constant FIXME
-    let stationPos = nav_pos_vec (station_position station)
-    let newShipNavModule = NavModule (SNPSpace $ Space (stationPos + departure) 
-                                                 Normalspace) 
-                                     Idle 
-    writeTVar tsh ship{ ship_navModule = newShipNavModule }
-    writeTVar tst station{ station_dockingBay =
-                            P.filter (/= tsh) (station_dockingBay station) }
+
+  ship <- readTVar tsh
+  shipPos <- checkT station_position tst >>= return . departureAround 
+  writeTVar tsh ship{ ship_navModule = NavModule (SNPSpace shipPos) Idle }
+
+  station <- readTVar tst
+  writeTVar tst station{ station_dockingBay =
+                          P.filter (/= tsh) (station_dockingBay station) }
 
 processJumping :: Ships -> IO ()
 processJumping tshs = 
-  readTVarIO tshs
-  >>= atomically . (filterM (\ship -> check ship jumping) . vals)
-  >>= (mapM_ jumpSh)
+  readTVarIO tshs >>= atomically . (filterT jumping) . vals >>= (mapM_ jumpSh)
 
 jumpSh :: (TVar Ship) -> IO ()
 jumpSh tsh = do
