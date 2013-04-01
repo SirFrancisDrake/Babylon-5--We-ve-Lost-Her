@@ -249,12 +249,13 @@ data Menu_ActionAfter =
   | MAA_Return
   deriving ()
 
-data Menu_ResultType =
-  MRT_Bool Bool
-  | MRT_Nothing
+data Menu_Result =
+  MR_Pop
+  | MR_Stay
+  | MR_Top
   deriving ()
   
-type Menu a = M.Map String (ReaderT a STM Bool, ReaderT a IO Menu_ResultType, Menu_ActionAfter)
+type Menu a = M.Map String (ReaderT a STM Bool, ReaderT a IO Menu_Result, Menu_ActionAfter)
 
 processMenu :: Menu a -> ReaderT a IO ()
 processMenu menu = do
@@ -265,17 +266,17 @@ processMenu menu = do
   liftIO $ putStrLn $ "\nYou've chosen to " ++ a ++ "."
   result <- fst (filteredMenu M.! a)
   case result of
-    MRT_Bool False -> processMenu menu
+    MR_Stay -> processMenu menu
     otherwise ->
       case snd (filteredMenu M.! a) of
         MAA_Return -> processMenu menu
-        otherwise  -> return ()
+        otherwise -> return ()
 
 interfaceOptions :: Menu World
 interfaceOptions = M.fromList
-  [ ("Navigation", (return True , runNavigationW    , MAA_Return))
-  , ("Trade"     , (dockedW     , runTradeW         , MAA_Return))
-  , ("Quit"      , (return True , return MRT_Nothing, MAA_Finish))
+  [ ("Navigation", (return True , runNavigationW, MAA_Return))
+  , ("Trade"     , (dockedW     , runTradeW     , MAA_Return))
+  , ("Quit"      , (return True , return MR_Top , MAA_Finish))
   ]
 
 interface = processMenu interfaceOptions
@@ -300,29 +301,29 @@ navigation = processMenu navigationOptions
 docked = ask >>= return . isJust . nc_dockedTo 
 undocked = docked >>= return . not
 
-navDisplay :: ReaderT NavContext IO (Menu_ResultType)
+navDisplay :: ReaderT NavContext IO (Menu_Result)
 navDisplay = do
   w <- ask
   tstm <- stmRtoIoR stationNearbyM
   pos <- liftIO $ atomically $ liftToTVar spacePosition (nc_ownerShip w)
   liftIO $ putStrLn $ "\nYour coordinates are: " ++ show pos
   stName <- liftIO (readTVarIO (fromJust tstm) >>= return . station_name)
-  if isJust tstm then (liftIO $ putStrLn $ "You're near a station: " ++ stName ++ "\n") >> return MRT_Nothing
-                 else return $ MRT_Nothing
+  if isJust tstm then (liftIO $ putStrLn $ "You're near a station: " ++ stName ++ "\n") >> return MR_Stay
+                 else return MR_Stay
 
-navDock :: ReaderT NavContext IO (Menu_ResultType)
+navDock :: ReaderT NavContext IO (Menu_Result)
 navDock = do
   nc@(NavContext tsh _ _) <- ask
   tstm <- stmRtoIoR stationNearbyM
   let tst = fromJust tstm
   liftIO $ atomically (startDockingTo tsh tst)
-  return MRT_Nothing
+  return MR_Pop
 
-navUndock :: ReaderT NavContext IO (Menu_ResultType)
+navUndock :: ReaderT NavContext IO (Menu_Result)
 navUndock = do
   (NavContext tsh _ _) <- ask
   liftIO $ atomically (startUndocking tsh)
-  return MRT_Nothing
+  return MR_Pop
   
 stationNearbyM :: ReaderT NavContext STM (Maybe (TVar Station))
 stationNearbyM = do
@@ -344,16 +345,16 @@ data NavContext = NavContext
   , nc_dockedTo :: Maybe (TVar Station)
   }
 
-runNavigationW :: ReaderT World IO (Menu_ResultType)
+runNavigationW :: ReaderT World IO (Menu_Result)
 runNavigationW = do
   w <- ask
   tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
   tsh  <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
   docked <- liftIO $ readTVarIO tsh >>= return . dockedM
   lift $ runReaderT navigation (NavContext tsh tsts docked)
-  return MRT_Nothing
+  return MR_Top
 
-navSetCourse :: ReaderT NavContext IO (Menu_ResultType)
+navSetCourse :: ReaderT NavContext IO (Menu_Result)
 navSetCourse = do
   navContext <- ask
   let tsh = nc_ownerShip navContext
@@ -366,10 +367,10 @@ navSetCourse = do
       liftIO $ putStrLn $ "You've successfully chosen a destination. It would appear " ++
                           "you're heading towards " ++ stName ++ " now."
       liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
-      return $ MRT_Bool True
+      return MR_Pop
     else do
       liftIO $ print "Nothing really happened."
-      return $ MRT_Bool False
+      return MR_Stay
 
 stationNames :: [TVar Station] -> STM [String]
 stationNames tsts = do
@@ -404,14 +405,14 @@ getDestination = do
 
 type TradeContext = (TVar Owner, TVar Ship, TVar Station)
 
-runTradeW :: ReaderT World IO (Menu_ResultType)
+runTradeW :: ReaderT World IO (Menu_Result)
 runTradeW = do
   w <- ask
   to  <- liftIO $ readTVarIO (world_owners   w) >>= return . (\a -> a ! 0) -- FIXME
   tsh <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
   tst <- liftIO $ readTVarIO tsh >>= return . dockedSt
   lift $ runReaderT trade (to, tsh, tst)
-  return MRT_Nothing
+  return MR_Pop
 
 runTrade :: TVar Owner -> TVar Ship -> TVar Station -> IO ()
 runTrade to ts tst = runReaderT trade (to, ts, tst)
