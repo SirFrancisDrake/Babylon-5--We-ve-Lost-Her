@@ -70,17 +70,19 @@ dockedToSt = dockedToStNS . navModule_position . ship_navModule
              where dockedToStNS (DockedToStation i) j = i == j
                    dockedToStNS _ _ = False
 
-setShipOnCourse :: Ship -> (TVar Station) -> Ship
-setShipOnCourse s tst = let (NavModule pos _) = ship_navModule s
-                        in s{ ship_navModule = NavModule pos (MovingToStation tst) }
+setNavStatus :: (TVar Ship) -> NavStatus -> STM ()
+setNavStatus tsh ns = readTVar tsh >>= \sh ->
+  writeTVar tsh sh{ ship_navModule =
+    (ship_navModule sh){ navModule_status = ns } }
 
-startDockingTo :: Ship -> (TVar Station) -> Ship
-startDockingTo s tst = let (NavModule pos _) = ship_navModule s
-                       in s{ ship_navModule = NavModule pos (DockingToStation tst) }
+setShipOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
+setShipOnCourse tsh tst = setNavStatus tsh (MovingToStation tst)
 
-startUndocking :: Ship -> Ship
-startUndocking s  = let (NavModule pos _) = ship_navModule s
-                    in s{ ship_navModule = NavModule pos Undocking }
+startDockingTo :: (TVar Ship) -> (TVar Station) -> STM ()
+startDockingTo tsh tst = setNavStatus tsh (DockingToStation tst)
+
+startUndocking :: (TVar Ship) -> STM ()
+startUndocking tsh = setNavStatus tsh Undocking
 
 ship_freeSpace :: Ship -> Weight
 ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (ship_cargo s)
