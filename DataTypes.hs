@@ -192,6 +192,7 @@ data World = World
     , world_ships     :: TVar (IntMap (TVar Ship)) 
     , world_owners    :: TVar (IntMap (TVar Owner)) 
     , world_jumpgates :: TVar (IntMap Jumpgate)
+    , world_time      :: TVar Int
     } deriving ()
 
 type Owners = TVar (IntMap (TVar Owner))

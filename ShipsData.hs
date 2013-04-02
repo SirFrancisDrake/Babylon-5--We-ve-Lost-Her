@@ -13,7 +13,8 @@ import Wrappers
 spaceN :: Double -> Double -> Double -> NavModule
 spaceN x y z = NavModule
                 (SNPSpace (Space (Vector3D x y z) Normalspace))
-                Idle
+                (MovingToSpace (fromList [5,5,5]) (fromList [50,50,50]))
+                []
 
 defaultNavModule = spaceN 0.01 0.01 0.01
 

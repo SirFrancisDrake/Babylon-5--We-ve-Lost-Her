@@ -23,12 +23,13 @@ generateWorldFrom srs = do
     tsrs <- mapM makeRace srs
     let appendTriples (a1, a2, a3) (b1, b2, b3) = (a1 ++ b1, a2 ++ b2, a3 ++ b3)
     let (towners, tships, tstations) = foldr appendTriples ([],[],[]) tsrs
-    let i l = I.fromList $ zip [0..] l
-    itst <- newTVar (i tstations)
-    itsh <- newTVar (i tships)
-    iown <- newTVar (i towners)
-    ijg  <- newTVar (i jg_startingJumpgates)
-    return (World itst itsh iown ijg)
+    let makeIntMap l = I.fromList $ zip [0..] l
+    itst <- newTVar (makeIntMap tstations)
+    itsh <- newTVar (makeIntMap tships)
+    iown <- newTVar (makeIntMap towners)
+    ijg  <- newTVar (makeIntMap jg_startingJumpgates)
+    tt   <- newTVar 0
+    return (World itst itsh iown ijg tt)
 
 makeRace :: StoredRace -> STM ([TVar Owner], [TVar Ship], [TVar Station])
 makeRace (StoredRace o shs sts) = do

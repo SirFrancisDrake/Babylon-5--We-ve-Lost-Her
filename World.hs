@@ -64,6 +64,12 @@ import Wrappers
 -- SECTION BREAK
 -- [WORLD] -- see section description in the contents above
 
+pause :: MVar () -> IO ()
+pause a = takeMVar a
+
+unpause :: MVar () -> IO ()
+unpause a = putMVar a ()
+
 makeNewWorld :: Owner -> Ship -> IO World
 makeNewWorld owner ship = do
     w <- atomically $ generateWorld
@@ -79,14 +85,13 @@ intMapToTVarIntMap ias = mapM newTVar vals >>= return . fromList . (zip keys)
 
           -- stop lock  pause lock
 gameCycle :: TVar Bool -> MVar () -> ReaderT World IO ()
-gameCycle slock plock = 
-         liftIO (readMVar plock)
-         >> liftIO (sleep (fromIntegral tickReal))
-         >> cycleEverything
-      -- >> printWorld
-         >> (liftIO $ readTVarIO slock)
-         >>= \stop -> if (not stop) then gameCycle slock plock
-                                    else return ()
+gameCycle slock plock = do
+  cycleEverything
+  liftIO $ sleep (fromIntegral tickReal)
+  stop <- liftIO $ readTVarIO slock
+  if (not stop) 
+    then (liftIO . readMVar) plock >> gameCycle slock plock
+    else return ()
 
 gameCycleIO :: World -> TVar Bool -> MVar () -> IO ()
 gameCycleIO w slock plock = runReaderT (gameCycle slock plock) w
@@ -127,11 +132,19 @@ cycleEverything = do
     let owners = world_owners world
     let ships = world_ships world
     let stations = world_stations world
+    let time = world_time world
+    lift $ putStrLn "Updating owners."
     liftIO $ cycleClass owners
+    lift $ putStrLn "Updating stations."
     liftIO $ cycleClass stations 
+    lift $ putStrLn "Updating ships."
     liftIO $ cycleClass ships 
+    lift $ putStrLn "Processing docking."
     liftIO $ processDocking ships stations
+    lift $ putStrLn "Processing undocking."
     liftIO $ processUndocking ships stations
+    liftIO $ putStrLn "Updating time."
+    lift (readTVarIO time) >>= lift . atomically . (writeTVar time) . (1+)
 
 -- printWorld :: ReaderT World IO ()
 -- printWorld = do
@@ -379,13 +392,15 @@ data NavContext = NavContext
   }
 
 runNavigationW :: ReaderT World IO (Menu_Result)
-runNavigationW = do
+runNavigationW = genNavContext >>= lift . (runReaderT navigation) >> return MR_Top
+
+genNavContext :: ReaderT World IO NavContext
+genNavContext = do
   w <- ask
   tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
   tsh  <- getPlayerShipIO
   docked <- liftIO $ readTVarIO tsh >>= return . dockedM
-  lift $ runReaderT navigation (NavContext tsh tsts docked)
-  return MR_Top
+  return (NavContext tsh tsts docked)
 
 navSetCourse :: ReaderT NavContext IO (Menu_Result)
 navSetCourse = do
@@ -405,11 +420,42 @@ navSetCourse = do
       liftIO $ print "Nothing really happened."
       return MR_Stay
 
-navTravel :: ReaderT World IO ()
-navTravel = getPlayerShipIO >>= lift . atomically . (checkT isIdle) >>= \b ->
+navTravelW :: World -> MVar () -> IO ()
+navTravelW w plock = runReaderT (navTravel plock) w
+
+navTravel :: MVar () -> ReaderT World IO ()
+navTravel plock = getPlayerShipIO >>= lift . atomically . (checkT isIdle) >>= \b ->
     if b
       then interface
-      else undefined
+      else do
+        lift $ putStrLn "Travel engaged. Press any key to stop time. "
+        slock <- lift $ newTVarIO False
+        ask >>= lift . forkIO . (navTravelRedrawIO slock)
+        lift getChar
+        lift $ atomically $ writeTVar slock True
+        lift $ pause plock
+
+navTravelRedrawIO :: TVar Bool -> World -> IO ()
+navTravelRedrawIO slock w = runReaderT (navTravelRedraw slock) w
+
+navTravelRedraw :: TVar Bool -> ReaderT World IO ()
+navTravelRedraw slock = do
+  lift $ setCursorPosition 0 0 >> clearFromCursorToScreenEnd >> setCursorPosition 3 0
+  tsh <- getPlayerShipIO
+  genNavContext >>= lift . (runReaderT navDisplay)
+  ask >>= liftIO . readTVarIO . world_time >>= \t ->
+    lift (putStrLn $ "Ticks AD: " ++ show t)
+  liftIO $ sleep (fromIntegral tickReal)
+  programEmpty <- lift $ atomically $ 
+    checkT (null . navModule_program . ship_navModule) tsh
+  shipIdle <- lift $ atomically $
+    checkT isIdle tsh
+  if programEmpty && shipIdle
+    then lift (putStrLn "\nThe ship has stopped." >> atomically (writeTVar slock True))
+    else return ()
+  liftIO (readTVarIO slock) >>= \stop ->
+    if stop then return ()
+            else navTravelRedraw slock
 
 stationNames :: [TVar Station] -> STM [String]
 stationNames tsts = do

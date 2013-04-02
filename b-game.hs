@@ -2,6 +2,7 @@ module Babylon where
 
 import Control.Concurrent
 import Control.Concurrent.STM
+import System.Posix (sleep)
 
 import DataTypes
 import StartingInput
@@ -23,3 +24,12 @@ import World
 
 -- for easy debugging
 magic = debStartingInput >>= uncurry makeNewWorld
+
+main = do
+  w <- magic
+  stopLock <- newTVarIO False
+  pauseLock <- newMVar ()
+  forkIO $ gameCycleIO w stopLock pauseLock
+  sleep 1
+  navTravelW w pauseLock
+  atomically $ writeTVar stopLock True
