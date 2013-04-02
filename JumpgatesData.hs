@@ -9,10 +9,9 @@ import Navigation
 import Space
 import Vector
 
-jg_startingJumpgates = zip [0..]
-                           [ jg_io
-                           , jg_earth
-                           ]
+jg_startingJumpgates = [ jg_io
+                       , jg_earth
+                       ]
 
 jg :: String -> Vector3D -> Jumpgate
 jg n v = 

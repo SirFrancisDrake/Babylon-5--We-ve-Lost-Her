@@ -60,6 +60,22 @@ data NavModule = NavModule { navModule_position :: ShipNavPosition
                            }
     deriving ()
 
+data NavAction =
+  NA_MoveTo Vector3D
+  | NA_Jump SpaceType
+  | NA_Dock (TVar Station)
+  | NA_Undock
+  deriving ()
+
+type NavProgram = [NavAction]
+
+np_jump :: Jumpgate -> SpaceType -> NavProgram
+np_jump jg st =
+  let pos = case st of
+              Hyperspace  -> jg_normalV jg
+              Normalspace -> jg_hyperV jg
+  in [NA_MoveTo pos, NA_Jump st]
+
 data ShipNavPosition = DockedToStation (TVar Station)
                      | DockedToShip (TVar Ship)
                      | SNPSpace NavPosition
@@ -165,9 +181,10 @@ instance StockOps Station where
 -- World.hs
 
 data World = World
-    { world_stations :: TVar (IntMap (TVar Station)) 
-    , world_ships :: TVar (IntMap (TVar Ship)) 
-    , world_owners :: TVar (IntMap (TVar Owner)) 
+    { world_stations  :: TVar (IntMap (TVar Station)) 
+    , world_ships     :: TVar (IntMap (TVar Ship)) 
+    , world_owners    :: TVar (IntMap (TVar Owner)) 
+    , world_jumpgates :: TVar (IntMap Jumpgate)
     } deriving ()
 
 type Owners = TVar (IntMap (TVar Owner))

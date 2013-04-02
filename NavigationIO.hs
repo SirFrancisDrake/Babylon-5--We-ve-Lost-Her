@@ -2,7 +2,11 @@
 module NavigationIO where
 
 import Control.Concurrent.STM
+import Control.Monad.Reader
 
+import Data.Function (on)
+import qualified Data.IntMap as I
+import Data.List (sortBy)
 import DataTypes
 import GlobalConst (const_jg_exit_radius)
 import Jumpgates
@@ -30,3 +34,8 @@ getJumpEnginePos (Jumping (JE_Jumpgate jg) _) stype =
   case stype of
     Normalspace -> return (jg_normal jg)
     Hyperspace -> return (jg_hyper jg)
+
+closestJumpgate :: NavPosition -> ReaderT World STM Jumpgate
+closestJumpgate p@(Space v t) =
+  let sortFn = compare `on` (\jg -> distance v (jg_vector jg t))
+  in ask >>= lift . readTVar . world_jumpgates >>= return . last . (sortBy sortFn) . I.elems

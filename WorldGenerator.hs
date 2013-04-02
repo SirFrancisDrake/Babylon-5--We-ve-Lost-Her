@@ -12,6 +12,8 @@ import qualified Prelude as P (map)
 import Auxiliary.IntMap
 import Data.Everything
 import DataTypes
+import Jumpgates
+import JumpgatesData
 
 generateWorld :: STM World
 generateWorld = generateWorldFrom startingRaces
@@ -25,7 +27,8 @@ generateWorldFrom srs = do
     itst <- newTVar (i tstations)
     itsh <- newTVar (i tships)
     iown <- newTVar (i towners)
-    return (World itst itsh iown)
+    ijg  <- newTVar (i jg_startingJumpgates)
+    return (World itst itsh iown ijg)
 
 makeRace :: StoredRace -> STM ([TVar Owner], [TVar Ship], [TVar Station])
 makeRace (StoredRace o shs sts) = do
