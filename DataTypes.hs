@@ -57,6 +57,7 @@ data PersonalInfo = Corporation { pi_corp_awesomeness :: Int
 
 data NavModule = NavModule { navModule_position :: ShipNavPosition
                            , navModule_status :: NavStatus
+                           , navModule_program :: NavProgram
                            }
     deriving ()
 
@@ -108,7 +109,7 @@ data Ship = Ship
 
 instance SpaceObject Ship where
   spacePosition sh =
-    let NavModule nmp _ = ship_navModule sh
+    let NavModule nmp _ _ = ship_navModule sh
     in case nmp of
          (SNPSpace v) -> v
          otherwise -> error "Can't locate a docked ship"

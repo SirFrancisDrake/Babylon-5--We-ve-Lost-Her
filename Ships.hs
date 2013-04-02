@@ -91,9 +91,9 @@ tick = fromInteger tickGame -- WARNING: MAGIC CONSTANT
                             -- tickGame imported from GlobalConst
 
 updateNavStatus :: NavModule -> NavModule -- ignores SpaceType FIXME
-updateNavStatus m@(NavModule pos Idle) = m 
-updateNavStatus m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ)) =
+updateNavStatus m@(NavModule pos Idle _) = m 
+updateNavStatus m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
     let posIfKeepMoving = pos + vel * tick
         closeEnough = length( targ-pos ) <= length( vel*tick )
-    in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle
-                      else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ)
+    in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle p
+                      else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ) p

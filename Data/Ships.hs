@@ -15,6 +15,7 @@ spaceN :: Double -> Double -> Double -> NavModule
 spaceN x y z = NavModule
                 (SNPSpace (Space (Vector3D x y z) Normalspace))
                 Idle
+                []
 
 valen'tha :: Ship
 valen'tha = 

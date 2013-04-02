@@ -23,6 +23,9 @@ filterT p ts = filterM (\s -> checkT p s) ts
 filterIT :: (a -> Bool) -> TVar (IntMap (TVar a)) -> STM [(TVar a)]
 filterIT p its = readTVar its >>= (filterT p) . vals
 
+mapIT :: (TVar a -> STM ()) -> (TVar (IntMap (TVar a))) -> STM ()
+mapIT fn its = readTVar its >>= (mapM_ fn) . vals
+
 -- filterT :: [(TVar a)] -> (a -> Bool) -> STM [(TVar a)]
 -- filterT ts p = 
 --   let fn = \acc tvar -> readTVar tvar >>= 

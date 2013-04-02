@@ -33,6 +33,7 @@ import Ships
 import ShipsAndStations
 import Space
 import Stock
+import System.Console.ANSI
 import Transactions
 import qualified Vector as V
 import Wares
@@ -187,7 +188,7 @@ processDocking tships tstations = atomically $ do
 dockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
 dockShSt tsh tst = do
   ship <- readTVar tsh
-  writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle }
+  writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle []}
   station <- readTVar tst
   writeTVar tst station{ station_dockingBay =
                           if tsh `notElem` (station_dockingBay station)
@@ -205,7 +206,10 @@ undockShSt tsh tst = do
 
   ship <- readTVar tsh
   shipPos <- checkT station_position tst >>= return . departureAround 
-  writeTVar tsh ship{ ship_navModule = NavModule (SNPSpace shipPos) Idle }
+  let navm = ship_navModule ship
+  writeTVar tsh ship{ ship_navModule = 
+    navm{ navModule_position = SNPSpace shipPos 
+        , navModule_status = Idle } }
 
   station <- readTVar tst
   writeTVar tst station{ station_dockingBay =
@@ -225,14 +229,23 @@ jumpSh tsh = do
   let cstype = nav_pos_type $ spacePosition sh
   entryPos <- atomically $ getJumpEnginePos (navModule_status $ ship_navModule sh) cstype
   newPos <- liftIO $ jump entryPos dstype
-  let newModule = (NavModule (SNPSpace newPos) Idle)
+  let newModule = (NavModule (SNPSpace newPos) Idle (navModule_program (ship_navModule sh)))
   atomically $ writeTVar tsh sh{ ship_navModule = newModule }
 
+-- processNavPrograms :: Ships -> IO ()
+-- processNavPrograms = mapM (atomically . processNavProgram)
+-- 
+-- processNavProgram :: (TVar Ship) -> STM ()
+-- processNavProgram tsh = do
+--   sh <- readTVar tsh
+--   let nprog = 
+-- 
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse = setShipOnCourse
 
 runInterface :: World -> IO ()
-runInterface w = runReaderT interface w
+runInterface w = setCursorPosition 0 0 >> clearFromCursorToScreenEnd >>
+  setCursorPosition 5 0 >> runReaderT interface w
 
 -- How to get stations, owner and owner's ship from ReaderT World _ _:
 --
@@ -263,7 +276,8 @@ processMenu menu = do
   filteredOptionsList <- filterM (\(_,(b,_,_)) -> stmRtoIoR b) (M.toList menu)
   let filteredMenu = M.fromList (P.map (\(a,(_,c,d)) -> (a,(c,d))) filteredOptionsList)
   a <- liftIO $ getByNum (M.keys filteredMenu)
-  liftIO $ putStrLn $ "\nYou've chosen to " ++ a ++ "."
+  lift $ setCursorPosition 0 0 >> clearFromCursorToScreenEnd >> setCursorPosition 5 0
+  liftIO $ putStrLn $ "> " ++ a ++ "\n"
   result <- fst (filteredMenu M.! a)
   case result of
     MR_Stay -> processMenu menu
