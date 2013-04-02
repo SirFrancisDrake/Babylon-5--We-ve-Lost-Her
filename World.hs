@@ -133,17 +133,18 @@ cycleEverything = do
     let ships = world_ships world
     let stations = world_stations world
     let time = world_time world
-    lift $ putStrLn "Updating owners."
+    --lift $ putStrLn "Updating owners."
     liftIO $ cycleClass owners
-    lift $ putStrLn "Updating stations."
+    --lift $ putStrLn "Updating stations."
     liftIO $ cycleClass stations 
-    lift $ putStrLn "Updating ships."
-    liftIO $ cycleClass ships 
-    lift $ putStrLn "Processing docking."
+    --lift $ putStrLn "Updating ships."
+    lift $ processIT ships
+    -- liftIO $ cycleClass ships 
+    --lift $ putStrLn "Processing docking."
     liftIO $ processDocking ships stations
-    lift $ putStrLn "Processing undocking."
+    --lift $ putStrLn "Processing undocking."
     liftIO $ processUndocking ships stations
-    liftIO $ putStrLn "Updating time."
+    --liftIO $ putStrLn "Updating time."
     lift (readTVarIO time) >>= lift . atomically . (writeTVar time) . (1+)
 
 -- printWorld :: ReaderT World IO ()
@@ -170,6 +171,10 @@ printClass tmap = readTVarIO tmap >>=
 
 class Processable a where
     process :: TVar a -> IO ()
+    processSTM :: TVar a -> STM ()
+    process = atomically . processSTM
+    processIT :: TVar (IntMap (TVar a)) -> IO ()
+    processIT = atomically . (mapIT processSTM)
 
 instance Processable Station where
     process tst = atomically $
@@ -182,7 +187,10 @@ instance Processable Owner where
     process _ = return ()
 
 instance Processable Ship where
-    process _ = return ()
+    processSTM tsh = do
+      sh <- readTVar tsh
+      let nm = ship_navModule sh
+      writeTVar tsh sh{ ship_navModule = tickMove nm }
 
 cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> 
@@ -352,10 +360,15 @@ navDisplay = do
   w <- ask
   tstm <- stmRtoIoR stationNearbyM
   pos <- liftIO $ atomically $ liftToTVar spacePosition (nc_ownerShip w)
+  vel <- liftIO $ atomically $ 
+    checkT (navMoving_velocity . navModule_status . ship_navModule) (nc_ownerShip w)
   liftIO $ putStrLn $ "\nYour coordinates are: " ++ show pos
-  stName <- liftIO (readTVarIO (fromJust tstm) >>= return . station_name)
-  if isJust tstm then (liftIO $ putStrLn $ "You're near a station: " ++ stName ++ "\n") >> return MR_Stay
-                 else return MR_Stay
+  liftIO $ putStrLn $ "Your velocity is: " ++ show vel
+  if isJust tstm 
+    then liftIO (readTVarIO $ fromJust tstm) >>= \st ->
+      (liftIO $ putStrLn $ "You're near a station: " ++ station_name st ++ "\n") 
+      >> return MR_Stay
+    else return MR_Stay
 
 navDock :: ReaderT NavContext IO (Menu_Result)
 navDock = do

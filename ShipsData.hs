@@ -16,7 +16,7 @@ spaceN x y z = NavModule
                 (MovingToSpace (fromList [5,5,5]) (fromList [50,50,50]))
                 []
 
-defaultNavModule = spaceN 0.01 0.01 0.01
+defaultNavModule = spaceN 0.0 0.0 0.0
 
 shipsDataDefShip = Ship "empty name"
                         (error "ShipsData.hs: undefined") 
