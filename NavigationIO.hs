@@ -37,5 +37,28 @@ getJumpEnginePos (Jumping (JE_Jumpgate jg) _) stype =
 
 closestJumpgate :: NavPosition -> ReaderT World STM Jumpgate
 closestJumpgate p@(Space v t) =
-  let sortFn = compare `on` (\jg -> distance v (jg_vector jg t))
-  in ask >>= lift . readTVar . world_jumpgates >>= return . last . (sortBy sortFn) . I.elems
+  ask >>= lift . readTVar . world_jumpgates >>= return . last . (sortBy sortFn) . I.elems
+  where sortFn = compare `on` (\jg -> distance v (jg_vector jg t))
+
+dumbRoutePlanner :: NavPosition -> NavPosition -> ReaderT World STM NavProgram
+dumbRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
+  | and [t1 == t2, t1 == Hyperspace] = return [NA_MoveTo v2]
+  | and [t1 == t2, t1 == Hyperspace] = do
+    jg1 <- closestJumpgate p1
+    jg2 <- closestJumpgate p2
+    return [ NA_MoveTo (jg_vector jg1 Normalspace)
+           , NA_Jump Hyperspace
+           , NA_MoveTo (jg_vector jg2 Hyperspace)
+           , NA_Jump Normalspace
+           , NA_MoveTo v2 ]
+  | t1 == Hyperspace = closestJumpgate p2 >>= \jg -> 
+    return
+     [ NA_MoveTo (jg_vector jg Hyperspace)
+     , NA_Jump Normalspace
+     , NA_MoveTo v2 ]
+  | t1 == Normalspace = closestJumpgate p1 >>= \jg -> 
+    return
+      [ NA_MoveTo (jg_vector jg Normalspace)
+      , NA_Jump Hyperspace
+      , NA_MoveTo v2 ]
+
