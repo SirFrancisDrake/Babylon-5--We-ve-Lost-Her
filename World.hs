@@ -247,14 +247,33 @@ runInterface :: World -> IO ()
 runInterface w = setCursorPosition 0 0 >> clearFromCursorToScreenEnd >>
   setCursorPosition 5 0 >> runReaderT interface w
 
--- How to get stations, owner and owner's ship from ReaderT World _ _:
+-- To link together `ReaderT World IO (TVar sth)' and `ReaderT World STM (TVar sth)'
+-- one can pass an accessor (readTVarIO and readTVar respectively) into a reader:
+-- getPlayerWith accessor = 
+--   ask >>= lift . accessor . world_owners >>= return . (\a -> a ! 0)
 --
--- tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
--- to   <- liftIO $ readTVarIO (world_owners   w) >>= return . (\a -> a ! 0) -- FIXME
--- tsh  <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+-- This is the type signature, borrowing from ghci:
+-- getPlayerWith
+--  :: ( EnvType (t, m) ~ World
+--     , MonadReader (t, m)
+--     , MonadTrans t
+--     , Monad m) =>
+--     (TVar (IntMap (TVar Ship)) -> m (IntMap b)) -> t m b
 
 stmRtoIoR :: ReaderT a STM r -> ReaderT a IO r
 stmRtoIoR r1 = ask >>= liftIO . atomically . (runReaderT r1)
+
+getPlayerShipSTM :: ReaderT World STM (TVar Ship) -- FIXME it shouldn't be Ships ! 0
+getPlayerShipSTM = ask >>= lift . readTVar . world_ships >>= return . (\a -> a ! 0)
+
+getPlayerSTM :: ReaderT World STM (TVar Owner) -- FIXLE it shouldn't be Owners ! 0
+getPlayerSTM = ask >>= lift . readTVar . world_owners >>= return . (\a -> a ! 0)
+
+getPlayerShipIO :: ReaderT World IO (TVar Ship)
+getPlayerShipIO = stmRtoIoR getPlayerShipSTM
+
+getPlayerIO :: ReaderT World IO (TVar Owner)
+getPlayerIO = stmRtoIoR getPlayerSTM
 
 data Menu_ActionAfter =
   MAA_Depends
@@ -363,7 +382,7 @@ runNavigationW :: ReaderT World IO (Menu_Result)
 runNavigationW = do
   w <- ask
   tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
-  tsh  <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+  tsh  <- getPlayerShipIO
   docked <- liftIO $ readTVarIO tsh >>= return . dockedM
   lift $ runReaderT navigation (NavContext tsh tsts docked)
   return MR_Top
@@ -385,6 +404,12 @@ navSetCourse = do
     else do
       liftIO $ print "Nothing really happened."
       return MR_Stay
+
+navTravel :: ReaderT World IO ()
+navTravel = getPlayerShipIO >>= lift . atomically . (checkT isIdle) >>= \b ->
+    if b
+      then interface
+      else undefined
 
 stationNames :: [TVar Station] -> STM [String]
 stationNames tsts = do
@@ -422,8 +447,8 @@ type TradeContext = (TVar Owner, TVar Ship, TVar Station)
 runTradeW :: ReaderT World IO (Menu_Result)
 runTradeW = do
   w <- ask
-  to  <- liftIO $ readTVarIO (world_owners   w) >>= return . (\a -> a ! 0) -- FIXME
-  tsh <- liftIO $ readTVarIO (world_ships    w) >>= return . (\a -> a ! 0) -- FIXME
+  to  <- getPlayerIO
+  tsh <- getPlayerShipIO 
   tst <- liftIO $ readTVarIO tsh >>= return . dockedSt
   lift $ runReaderT trade (to, tsh, tst)
   return MR_Pop

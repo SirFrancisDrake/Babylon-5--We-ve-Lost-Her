@@ -40,6 +40,12 @@ docking s = dockingStNS (navModule_status $ ship_navModule s)
             where dockingStNS (DockingToStation _) = True
                   dockingStNS _ = False
 
+isIdle :: Ship -> Bool
+isIdle s =
+  case navModule_status (ship_navModule s) of
+    Idle -> True
+    otherwise -> False
+
 jumping :: Ship -> Bool
 jumping s = jumpingNS (navModule_status $ ship_navModule s)
             where jumpingNS (Jumping _ _) = True
