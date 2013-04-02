@@ -107,6 +107,12 @@ data Ship = Ship
              }
         deriving ()
 
+instance SpaceObject ShipNavPosition where
+  spacePosition snp =
+    case snp of
+      (SNPSpace v) -> v
+      otherwise -> error "Can't locate a docked ship"
+
 instance SpaceObject Ship where
   spacePosition sh =
     let NavModule nmp _ _ = ship_navModule sh

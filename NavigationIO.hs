@@ -62,3 +62,20 @@ dumbRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
       , NA_Jump Hyperspace
       , NA_MoveTo v2 ]
 
+tickNavProgram :: NavModule -> ReaderT World STM NavModule
+tickNavProgram nm
+  | null (navModule_program nm) = return nm
+  | otherwise = do
+    let (p:ps) = navModule_program nm
+    let stat = navModule_status nm
+    (ns, np) <- 
+      case p of
+        (NA_MoveTo v) -> return (MovingToSpace 0 v   , ps)
+        (NA_Dock tst) -> return (DockingToStation tst, ps)
+        NA_Undock     -> return (Undocking           , ps)
+        (NA_Jump st)  -> closestJumpgate (spacePosition $ navModule_position nm) >>=
+          \jg -> return (Jumping (JE_Jumpgate jg) st , ps)
+    case stat of
+      Idle -> return nm{ navModule_status = ns
+                       , navModule_program = np }
+      otherwise -> return nm

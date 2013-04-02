@@ -90,9 +90,9 @@ ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (
 tick = fromInteger tickGame -- WARNING: MAGIC CONSTANT
                             -- tickGame imported from GlobalConst
 
-updateNavStatus :: NavModule -> NavModule -- ignores SpaceType FIXME
-updateNavStatus m@(NavModule pos Idle _) = m 
-updateNavStatus m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
+tickMove :: NavModule -> NavModule -- ignores SpaceType FIXME
+tickMove m@(NavModule pos Idle _) = m 
+tickMove m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
     let posIfKeepMoving = pos + vel * tick
         closeEnough = length( targ-pos ) <= length( vel*tick )
     in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle p
