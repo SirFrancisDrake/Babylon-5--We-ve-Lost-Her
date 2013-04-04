@@ -185,8 +185,8 @@ instance WareOps Station where
     checkWarePure w st@Station{ station_stock = stock } = checkWarePure w stock
 
 instance MoneyOps Station where
-    addMoney amount st@Station{ station_money = m } = st{ station_money = m + amount }
-    enoughMoney amount st@Station{ station_money = m } = m >= amount
+    addMoneyPure amount st@Station{ station_money = m } = st{ station_money = m + amount }
+    enoughMoneyPure amount st@Station{ station_money = m } = m >= amount
 
 instance StockOps Station where
     stockBuyPrice Station{ station_stock = stock } w = stockBuyPrice stock w

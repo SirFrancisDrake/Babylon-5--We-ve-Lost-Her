@@ -181,7 +181,7 @@ instance Processable Station where
     processSTM tst = 
       readTVar tst >>= (writeTVar tst) . stationFns
       where stationFns = foldl' (.) id
-                                [ (\st -> addMoney 3000 st) -- example tax income
+                                [ (\st -> addMoneyPure 3000 st) -- example tax income
                                 ]
 
 instance Processable Owner where
@@ -567,8 +567,8 @@ buy bw ba = do
     if cb then atomically $ do
             removeWare bw ba tst
             addWare bw ba tsh
-            stmRemoveMoney (stockSellPrice st bw * fromIntegral ba) to
-            stmAddMoney (stockSellPrice st bw * fromIntegral ba) tst
+            removeMoney (stockSellPrice st bw * fromIntegral ba) to
+            addMoney (stockSellPrice st bw * fromIntegral ba) tst
           else return ()
 
 canSell :: Ware -> Amount -> ReaderT TradeContext IO Bool
@@ -593,13 +593,6 @@ sell sw sa = do
     if cs then atomically $ do
             removeWare sw sa tsh
             addWare sw sa tst
-            stmRemoveMoney (stockBuyPrice st sw * fromIntegral sa) tst
-            stmAddMoney (stockBuyPrice st sw * fromIntegral sa) to
+            removeMoney (stockBuyPrice st sw * fromIntegral sa) tst
+            addMoney (stockBuyPrice st sw * fromIntegral sa) to
           else return ()
-
--- MoneyOps for STM'ed instances of MoneyOps
-stmAddMoney :: (MoneyOps a) => Amount -> (TVar a) -> STM ()
-stmAddMoney a = modifyT (addMoney a)
-
-stmRemoveMoney :: (MoneyOps a) => Amount -> (TVar a) -> STM ()
-stmRemoveMoney a = modifyT (removeMoney a)

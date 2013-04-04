@@ -27,6 +27,6 @@ defaultOwners = fromList $ zip [1..] [ownerOne]
 defaultPersonalInfo = Person Human Military
 
 instance MoneyOps Owner where
-    addMoney m o@Owner{ owner_money = om } = o{ owner_money = om + m}
-    enoughMoney m o@Owner{ owner_money = om } = om >= m
+    addMoneyPure m o@Owner{ owner_money = om } = o{ owner_money = om + m}
+    enoughMoneyPure m o@Owner{ owner_money = om } = om >= m
 
