@@ -1,6 +1,7 @@
 module Auxiliary.IntMap where
 
-import Data.IntMap hiding (map)
+import Data.IntMap hiding ((\\),map)
+import Data.List ((\\))
 import Prelude hiding (filter, null) -- looks like haskell needs a `container` typeclass
 
 -- This function inserts a value into an IntMap without a pre-defined key
@@ -8,7 +9,7 @@ import Prelude hiding (filter, null) -- looks like haskell needs a `container` t
 insertMax :: a -> IntMap a -> IntMap a
 insertMax val imap 
     | null imap = insert 0 val imap
-    | otherwise = let key = fst (findMax imap) + 1
+    | otherwise = let key = fst (findMax imap) + 1 --key = head $ [0..] \\ (keys imap) 
                   in insert key val imap
 -- note that this code is potentially imperfect since it's possible
 -- to have an IntMap like "fromList [(2^480, someval)], and this fn

@@ -30,19 +30,31 @@ mapIT fn its = readTVar its >>= (mapM_ fn) . vals
 --                               else return acc
 --   in foldM fn [] ts
 
--- example function
--- removes  ware   amount adds ware amount       to a station
-addInstance :: TVar (IntMap (TVar a)) -> a -> IO ()
-addInstance instances newInstance = atomically $ do
+addInstance :: TVar (IntMap (TVar a)) -> a -> STM (TVar a)
+addInstance instances newInstance = do
     instancesMap <- readTVar instances
     newInstanceTVar <- newTVar newInstance
     writeTVar instances $ insertMax newInstanceTVar instancesMap
+    return newInstanceTVar
 
-addInstanceTo :: TVar (IntMap (TVar a)) -> a -> Int -> IO ()
-addInstanceTo instances newInstance i = atomically $ do
+addInstanceTo :: TVar (IntMap (TVar a)) -> a -> Int -> STM (TVar a)
+addInstanceTo instances newInstance i = do
     instancesMap <- readTVar instances
     newInstanceTVar <- newTVar newInstance
     writeTVar instances $ insert 0 newInstanceTVar instancesMap
+    return newInstanceTVar
+
+--addInstance_ :: TVar (IntMap (TVar a)) -> a -> STM ()
+--addInstance_ instances newInstance = do
+--    instancesMap <- readTVar instances
+--    newInstanceTVar <- newTVar newInstance
+--    writeTVar instances $ insertMax newInstanceTVar instancesMap
+
+--addInstanceTo_ :: TVar (IntMap (TVar a)) -> a -> Int -> STM (TVar a)
+--addInstanceTo_ instances newInstance i = atomically $ do
+--    instancesMap <- readTVar instances
+--    newInstanceTVar <- newTVar newInstance
+--    writeTVar instances $ insert 0 newInstanceTVar instancesMap
 
 listInstanceIDs :: TVar (IntMap (TVar a)) -> IO ()
 listInstanceIDs instances = do

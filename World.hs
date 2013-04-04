@@ -11,12 +11,12 @@ import Data.IntMap hiding (filter, null, map)   -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
 import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes once
-import Data.List (foldl') -- non-alphabetical so that I could write the above comment
+import Data.List (foldl')  -- non-alphabetical so that I could write the above comment
+import System.Console.ANSI
 import System.Posix (sleep) -- first non-cross-platform line in the code
 
 import AI
 import Auxiliary.IntMap
-import qualified Auxiliary.Map as M1
 import Auxiliary.StringFunctions
 import Auxiliary.Transactions
 import Auxiliary.Tuples
@@ -24,17 +24,16 @@ import Currency
 import DataTypes
 import Data.Everything
 import GlobalConst
+import Interface
+import Jumpgates
 import Navigation
 import NavigationIO
-import Interface
 import Owner
 import Parsable
 import Ships
 import ShipsAndStations
 import Space
 import Stock
-import System.Console.ANSI
-import qualified Vector as V
 import Wares
 import WorldGenerator
 import Wrappers
@@ -72,10 +71,12 @@ unpause a = putMVar a ()
 makeNewWorld :: Owner -> Ship -> IO World
 makeNewWorld owner ship = do
     w <- atomically generateWorld
-    addInstanceTo (world_owners w) owner 0
-    addInstanceTo (world_ships w) ship 0
+    pown <- atomically $ addInstance (world_owners w) owner
+    psh  <- atomically $ addInstance (world_ships w) ship
+    plyr <- newTVarIO (Player pown psh [])
     plock <- newMVar ()
-    return w{ world_pauseLock = plock }
+    return w{ world_player = plyr
+            , world_pauseLock = plock }
 
 -- this fn also exists in WorldGenerator.hs FIXME    
 intMapToTVarIntMap :: IntMap a -> STM (IntMap (TVar a))
@@ -515,6 +516,13 @@ getDestination = do
   sts <- nc_allStations <$> ask
   input <- liftIO getLine
   return $ formParser sts input
+
+discoverJumpgate :: Jumpgate -> TVar Player -> STM ()
+discoverJumpgate jg tp = readTVar tp >>= \p ->
+  let jgs = player_knownJumpgates p
+  in  if jg `elem` jgs
+        then return ()
+        else writeTVar tp p{ player_knownJumpgates = jg:jgs }
 
 type TradeContext = (TVar Owner, TVar Ship, TVar Station)
 
