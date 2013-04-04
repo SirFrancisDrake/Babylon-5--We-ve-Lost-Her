@@ -71,9 +71,17 @@ data NavModule = NavModule { navModule_position :: ShipNavPosition
 data NavAction =
   NA_MoveTo Vector3D
   | NA_Jump SpaceType
+  | NA_MoveInHyper Jumpgate
   | NA_Dock (TVar Station)
   | NA_Undock
   deriving ()
+
+instance Show NavAction where
+  show (NA_Dock _) = "\n Dock"
+  show (NA_MoveTo v) = "\n Move to: " ++ show v
+  show (NA_MoveInHyper jg) = "\n Hypertravel to " ++ jg_name jg ++ " jumpgate"
+  show (NA_Jump st) = "\n Jump to " ++ show st
+  show _ = error "\n Show: NavAction: undefined"
 
 type NavProgram = [NavAction]
 
@@ -95,6 +103,10 @@ data NavStatus = Idle
                | Undocking
                | MovingToSpace { navMoving_velocity :: Vector3D
                                , navMoving_target :: Vector3D }
+               | MovingInHyperspace { navMoving_closingSpeed   :: Double
+                                    , navMoving_remainingDist  :: Double
+                                    , navMoving_targetJumpgate :: Jumpgate
+                                    }
                | MovingToStation (TVar Station)
                | Jumping JumpEngine SpaceType
     deriving ()

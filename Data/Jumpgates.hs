@@ -1,7 +1,5 @@
-module Data.Jumpgates 
-  ( jg_startingJumpgates
-  )
-where
+
+module Data.Jumpgates where
 
 import qualified Data.Map as M
 
@@ -14,6 +12,8 @@ import Vector
 
 jg_startingJumpgates = [ jg_io
                        , jg_earth
+                       , jg_alphaCentauri
+                       , jg_proximaCentauri
                        ]
 
 -- To add the possibility of ingame jumpgate creation, one would need
@@ -56,7 +56,7 @@ jg n v =
   let (Space v1 _) = toHyper (Space v Normalspace)
   in  Jumpgate n v v1
 
-jg_io = jg "Io" (fromList [1,2,3])
-jg_earth = jg "Earth" (fromList [5,6,7])
-jg_alphaCentauri = jg "Alpha Centauri" (fromList [11.2, 13.1, 198.17])
+jg_io              = jg "Io"               (fromList [1,    2,    3])
+jg_earth           = jg "Earth"            (fromList [5,    6,    7])
+jg_alphaCentauri   = jg "Alpha Centauri"   (fromList [11.2, 13.1, 198.17])
 jg_proximaCentauri = jg "Proxima Centauri" (fromList [11.9, 90.7, 165.14])

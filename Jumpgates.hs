@@ -40,5 +40,5 @@ jg_position jg t =
 jg_vector :: Jumpgate -> SpaceType -> Vector3D
 jg_vector jg t =
   case t of
-    Hyperspace  -> jg_normalV jg
-    Normalspace -> jg_hyperV  jg
+    Hyperspace  -> jg_hyperV jg
+    Normalspace -> jg_normalV  jg
