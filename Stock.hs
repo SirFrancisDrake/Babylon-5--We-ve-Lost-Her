@@ -51,7 +51,7 @@ defaultStock = let fn (w,a) = (w,a,0,0,0)
 makeStock :: [(Ware, Amount, BuyPrice, SellPrice, DesiredAmount)] -> Stock
 makeStock tuples =
     let fns = map ( \(w,a,bp,sp,da) -> 
-                        \st -> (addWare w a) (setDesired st w da))
+                        \st -> (addWarePure w a) (setDesired st w da))
                   tuples
     in (foldl' (.) id (setStockPrice:fns)) defaultStock
 
@@ -65,15 +65,15 @@ filterTrading :: Stock -> Stock
 filterTrading sis = filter (\(_,_,_,_,da) -> da /= 0) sis
 
 instance WareOps Stock where
-    addWare ware amount st =
+    addWarePure ware amount st =
         let fn = \acc i@(w,a,_,_,da) -> if (w == ware) then acc ++ [setStockItemPrice (w,a+amount,0,0,da)]
                                                        else acc ++ [i]
         in foldl' fn [] st
-    enoughWare ware amount st =
+    enoughWarePure ware amount st =
         let fn = \acc (w,a,_,_,_) -> if ((w == ware) && (a >= amount)) then True
                                                                        else acc
         in foldl' fn False st
-    checkWare ware st =
+    checkWarePure ware st =
         let fn = \acc (w,a,_,_,_) -> if (w == ware) then a
                                                     else acc
         in foldl' fn (-1) st

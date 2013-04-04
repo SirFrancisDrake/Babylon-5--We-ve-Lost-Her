@@ -22,13 +22,13 @@ defaultNavModule = NavModule (SNPSpace $ Space (V.fromList [0,0,0]) Normalspace)
 
 defaultShipClass = Rhino
 
-shipStats _ = ShipStats 1 10 100
+shipStats _ = ShipStats 1 10 100 200.0
 
 firstEmptyKey :: IntMap a -> Int
 firstEmptyKey = fst . findMax
 
 defaultShipStats :: ShipClass -> ShipStats
-defaultShipStats _ = ShipStats 1 10 100
+defaultShipStats _ = ShipStats 1 10 100 200.0
 
 undocking :: Ship -> Bool
 undocking s = undockingStNS (navModule_status $ ship_navModule s)
@@ -44,6 +44,12 @@ isIdle :: Ship -> Bool
 isIdle s =
   case navModule_status (ship_navModule s) of
     Idle -> True
+    otherwise -> False
+
+isMoving :: Ship -> Bool
+isMoving s =
+  case navModule_status (ship_navModule s) of
+    MovingToSpace _ _ -> True
     otherwise -> False
 
 jumping :: Ship -> Bool
@@ -103,3 +109,4 @@ tickMove m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
         closeEnough = length( targ-pos ) <= length( vel*tick )
     in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle p
                       else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ) p
+tickMove n = n

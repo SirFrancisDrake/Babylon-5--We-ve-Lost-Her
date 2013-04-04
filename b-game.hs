@@ -31,5 +31,5 @@ main = do
   pauseLock <- newMVar ()
   forkIO $ gameCycleIO w stopLock pauseLock
   sleep 1
-  navTravelW w pauseLock
+  runInterface w
   atomically $ writeTVar stopLock True

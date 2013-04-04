@@ -3,12 +3,13 @@
 
 module DataTypes where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Data.Function (on)
 import Data.IntMap hiding (fromList, map)
 
 import Auxiliary.IntMap
-import Auxiliary.STM (liftToTVar)
+import Auxiliary.Transactions (liftToTVar)
 import Currency
 import InterfaceShow
 import Jumpgates
@@ -36,21 +37,27 @@ data SCommand = SGo (TVar Station) | SBuy Ware Amount | SSell Ware Amount
 
 -- OWNERS.HS
 
-data Owner = Owner 
-    { owner_name :: String
-    , owner_stationsOwned :: [(TVar Station)]
-    , owner_shipsOwned :: [(TVar Ship)]
-    , owner_personalInfo :: PersonalInfo
-    , owner_money :: Money }
-    deriving ()
+data Player = Player
+  { player_owner          :: TVar Owner
+  , player_selectedShip   :: TVar Ship
+  , player_knownJumpgates :: [Jumpgate]
+  }
+  deriving ()
 
-data PersonalInfo = Corporation { pi_corp_awesomeness :: Int 
-                                } 
-                  | Person { pi_person_race :: Race
-                           , pi_person_career :: Career
-                           }
-                  | Nation { pi_nation_something :: Int
-                           }
+data Owner = Owner 
+  { owner_name :: String
+  , owner_stationsOwned :: [(TVar Station)]
+  , owner_shipsOwned :: [(TVar Ship)]
+  , owner_personalInfo :: PersonalInfo
+  , owner_money :: Money }
+  deriving ()
+
+data PersonalInfo = 
+  Corporation { pi_corp_awesomeness :: Int }
+  | Person { pi_person_race :: Race
+           , pi_person_career :: Career
+           }
+  | Nation { pi_nation_something :: Int }
     deriving (Eq, Show)
 
 -- SHIPS.HS
@@ -131,9 +138,9 @@ data ShipClass = Liandra   -- small Anla'Shok vessel
     deriving (Eq, Show)
 
 instance WareOps Ship where
-    addWare w a st@Ship{ ship_cargo = cargo } = st{ ship_cargo = addWare w a cargo}
-    enoughWare w a st@Ship{ ship_cargo = cargo } = enoughWare w a cargo
-    checkWare w st@Ship{ ship_cargo = cargo } = checkWare w cargo
+    addWarePure w a st@Ship{ ship_cargo = cargo } = st{ ship_cargo = addWarePure w a cargo}
+    enoughWarePure w a st@Ship{ ship_cargo = cargo } = enoughWarePure w a cargo
+    checkWarePure w st@Ship{ ship_cargo = cargo } = checkWarePure w cargo
 
 -- STATIONS.HS
 
@@ -173,9 +180,9 @@ instance Show (Station -> Station) where
     show _ = "some (Station -> Station)"
 
 instance WareOps Station where
-    addWare w a st@Station{ station_stock = stock } = st{ station_stock = addWare w a stock}
-    enoughWare w a st@Station{ station_stock = stock } = enoughWare w a stock
-    checkWare w st@Station{ station_stock = stock } = checkWare w stock
+    addWarePure w a st@Station{ station_stock = stock } = st{ station_stock = addWarePure w a stock}
+    enoughWarePure w a st@Station{ station_stock = stock } = enoughWarePure w a stock
+    checkWarePure w st@Station{ station_stock = stock } = checkWarePure w stock
 
 instance MoneyOps Station where
     addMoney amount st@Station{ station_money = m } = st{ station_money = m + amount }
@@ -192,7 +199,9 @@ data World = World
     , world_ships     :: TVar (IntMap (TVar Ship)) 
     , world_owners    :: TVar (IntMap (TVar Owner)) 
     , world_jumpgates :: TVar (IntMap Jumpgate)
+    , world_player    :: TVar Player
     , world_time      :: TVar Int
+    , world_pauseLock :: MVar ()
     } deriving ()
 
 type Owners = TVar (IntMap (TVar Owner))

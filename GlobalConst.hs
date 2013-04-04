@@ -1,6 +1,6 @@
 module GlobalConst where
 
-tickReal = 3 -- seconds
+tickReal = 1 -- seconds
 tickGame = 1 -- seconds
 
 const_jg_exit_radius = 10.0 -- how far from the jumpgate you end up after jumping

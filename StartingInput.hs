@@ -13,10 +13,10 @@ import System.Console.Readline
 
 import Auxiliary.StringFunctions
 import AI
+import Data.ShipClasses
 import DataTypes
 import PersonalData
 import ShipsAndStations
-import ShipsData
 import Owner
 import VariousFns
 

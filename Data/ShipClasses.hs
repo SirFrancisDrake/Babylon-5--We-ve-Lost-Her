@@ -1,4 +1,4 @@
-module ShipsData where
+module Data.ShipClasses where
 
 import AI
 import DataTypes
@@ -13,7 +13,7 @@ import Wrappers
 spaceN :: Double -> Double -> Double -> NavModule
 spaceN x y z = NavModule
                 (SNPSpace (Space (Vector3D x y z) Normalspace))
-                (MovingToSpace (fromList [5,5,5]) (fromList [50,50,50]))
+                (MovingToSpace (fromList [0.5,0.5,0.5]) (fromList [3,3,3]))
                 []
 
 defaultNavModule = spaceN 0.0 0.0 0.0

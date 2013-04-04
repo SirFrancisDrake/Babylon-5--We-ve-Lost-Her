@@ -1,5 +1,6 @@
 module Wares where
 
+import Control.Concurrent.STM
 import Control.Monad (join)
 import Data.Char (toLower)
 import Data.Function (on)
@@ -7,6 +8,7 @@ import Data.List (foldl', intersperse, sort, sortBy)
 import Data.Monoid
 
 import Auxiliary.StringFunctions
+import Auxiliary.Transactions
 import Wrappers
 
 data Ware = Books | CyberModules | Energy | Food | Fuel | Silicium | Supplies
@@ -85,7 +87,7 @@ defaultCargo = Cargo
 makeCargo :: [(Ware, Amount)] -> Cargo
 makeCargo pairs =
     let fns = map ( \(w,a) -> 
-                        \t -> addWare w a t) 
+                        \t -> addWarePure w a t) 
                   pairs
     in (foldl' (.) id fns) defaultCargo
 
@@ -96,7 +98,7 @@ caprica = makeCargo [(Fuel, 30), (Supplies, 10)]
 
 exchangeWare :: Cargo -> Ware -> Amount -> Ware -> Amount -> Cargo
 exchangeWare c wc ac wp ap =
-    if enoughWare wc ac c then (removeWare wc ac (addWare wp ap c))
+    if enoughWarePure wc ac c then (removeWarePure wc ac (addWarePure wp ap c))
                           else c
 
 exchangeWareTimes :: Cargo -> Ware -> Amount -> Ware -> Amount -> Int -> Cargo
@@ -125,28 +127,40 @@ class Weighable a where
     weight :: a -> Weight
 
 instance WareOps Cargo where
-    addWare ware amount (Cargo ws) =
+    addWarePure ware amount (Cargo ws) =
         let fn = \acc (w,a) -> if (w == ware) then acc ++ [(w,a+amount)]
                                               else acc ++ [(w,a)]
         in Cargo $ foldl' fn [] ws
-    enoughWare ware amount (Cargo ws) =
+    enoughWarePure ware amount (Cargo ws) =
         let fn = \acc (w,a) -> if ((w == ware) && (a >= amount)) then True
                                                                  else acc
         in foldl' fn False ws
-    checkWare ware (Cargo ws) =
+    checkWarePure ware (Cargo ws) =
         let fn = \acc (w,a) -> if (w == ware) then a
                                               else acc
         in foldl' fn (-1) ws
 
 class WareOps a where
-    addWare :: Ware -> Amount -> a -> a
-    checkWare :: Ware -> a -> Amount
-    removeWare :: Ware -> Amount -> a -> a
-    enoughWare :: Ware -> Amount -> a -> Bool
-    mbRemoveWare :: Ware -> Amount -> a -> Maybe a
+    addWarePure      :: Ware -> Amount -> a -> a
+    checkWarePure    :: Ware -> a -> Amount
+    removeWarePure   :: Ware -> Amount -> a -> a
+    enoughWarePure   :: Ware -> Amount -> a -> Bool
+    mbRemoveWarePure :: Ware -> Amount -> a -> Maybe a
 
-    removeWare w a obj = addWare w (-a) obj
-    mbRemoveWare w a obj = 
-        if (enoughWare w a obj) then Just $ removeWare w a obj
+    addWare    :: Ware -> Amount -> TVar a -> STM ()
+    addWare w a = modifyT (addWarePure w a)
+
+    checkWare  :: Ware -> TVar a -> STM Amount
+    checkWare w = checkT (checkWarePure w)
+
+    removeWare :: Ware -> Amount -> TVar a -> STM ()
+    removeWare w a = modifyT (removeWarePure w a)
+
+    enoughWare :: Ware -> Amount -> TVar a -> STM Bool
+    enoughWare w a = checkT (enoughWarePure w a)
+
+    removeWarePure w a obj = addWarePure w (-a) obj
+    mbRemoveWarePure w a obj = 
+        if (enoughWarePure w a obj) then Just $ removeWarePure w a obj
                                 else Nothing
 

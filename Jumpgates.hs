@@ -1,5 +1,7 @@
 module Jumpgates where
 
+import Data.Function (on)
+import qualified Data.Map as M
 
 import Navigation
 import Vector
@@ -9,11 +11,19 @@ data Jumpgate = Jumpgate
     , jg_normalV :: Vector3D
     , jg_hyperV :: Vector3D
     }
-    deriving (Eq)
+    deriving ()
+
+instance Eq Jumpgate where
+  (==) = on (==) jg_name
+
+instance Ord Jumpgate where
+  (<=) = on (<=) jg_name
 
 instance Show Jumpgate where
   show (Jumpgate n v1 v2) = "Jumpgate ``" ++ n ++ "''\n\t" 
                             ++ show v1 ++ "\n\t" ++ show v2 ++ "\n"
+
+type JumpgateNetwork = M.Map (Jumpgate, Jumpgate) Double
 
 jg_normal :: Jumpgate -> NavPosition
 jg_normal j = Space (jg_normalV j) Normalspace

@@ -1,4 +1,3 @@
-
 module Data.Ships where
 
 import AI
@@ -8,22 +7,25 @@ import ShipStats
 import Vector
 import Wares
 
-minbariShips = [ valen'tha
-               ]
+minbariShips = 
+  [ valen'tha
+  ]
 
 spaceN :: Double -> Double -> Double -> NavModule
-spaceN x y z = NavModule
-                (SNPSpace (Space (Vector3D x y z) Normalspace))
-                Idle
-                []
+spaceN x y z = 
+  NavModule
+    (SNPSpace (Space (Vector3D x y z) Normalspace))
+    Idle
+    []
 
 valen'tha :: Ship
 valen'tha = 
-    Ship
-        "Valen'tha"
-        Sharlin
-        defaultStats
-        (spaceN 30 27 29.2)
-        defaultAI
-        defaultCargo
-        undefined
+  Ship
+    "Valen'tha"
+    Sharlin
+    defaultStats
+    (spaceN 30 27 29.2)
+    defaultAI
+    defaultCargo
+    undefined
+
