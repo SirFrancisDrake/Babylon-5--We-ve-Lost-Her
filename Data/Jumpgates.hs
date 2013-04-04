@@ -5,6 +5,7 @@ where
 
 import qualified Data.Map as M
 
+import Auxiliary.Graph
 import Data.Maybe (isJust, fromJust)
 import Jumpgates
 import Navigation
@@ -34,6 +35,9 @@ jgsDistance jg1 jg2 =
        (True, _) -> fromJust m1
        (_, True) -> fromJust m2
        otherwise -> error "Jumpgates: jgsDistance: Jumpgates not adjacent"
+
+instance Graph Jumpgate where
+  adjacentNodes = jg_adjacent
 
 jgsAdjacentP :: Jumpgate -> Jumpgate -> Bool
 jgsAdjacentP jg1 jg2 = not . null $
