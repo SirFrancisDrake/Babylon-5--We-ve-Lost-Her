@@ -8,13 +8,39 @@ import qualified Data.IntMap as I
 import Data.List (sortBy)
 
 import Auxiliary.Graph
+import Auxiliary.Transactions
+import Contexts
 import Data.Jumpgates
 import DataTypes
 import GlobalConst (const_jg_exit_radius)
 import Jumpgates
 import Navigation
+import ShipStats
 import Space
 import Vector
+
+setShipOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
+setShipOnCourse tsh tst = do
+  from <- readTVar tsh >>= return . nav_pos_vec . spacePosition
+  to <- readTVar tst >>= return . nav_pos_vec . spacePosition
+  topSpeed <- readTVar tsh >>= return . shipStats_topSpeed . ship_stats
+  setNavStatus tsh (MovingToSpace (computeVelocity topSpeed from to) to)
+
+setNavStatus :: (TVar Ship) -> NavStatus -> STM ()
+setNavStatus tsh ns = readTVar tsh >>= \sh ->
+  writeTVar tsh sh{ ship_navModule =
+    (ship_navModule sh){ navModule_status = ns } }
+
+setNavProgramPure :: NavProgram -> Ship -> Ship
+setNavProgramPure prg sh =
+  let nm = ship_navModule sh
+  in  sh{ ship_navModule = nm{ navModule_program = prg } }
+
+startDockingTo :: (TVar Ship) -> (TVar Station) -> STM ()
+startDockingTo tsh tst = setNavStatus tsh (DockingToStation tst)
+
+startUndocking :: (TVar Ship) -> STM ()
+startUndocking tsh = setNavStatus tsh Undocking
 
 -- Randomly choose a spot inside a r-circle around p, but not p
 -- it's gonna use IO later, hence the type. TODO implement pseudorandom choice
@@ -37,12 +63,12 @@ getJumpEnginePos (Jumping (JE_Jumpgate jg) _) stype =
     Normalspace -> return (jg_normal jg)
     Hyperspace -> return (jg_hyper jg)
 
-closestJumpgate :: NavPosition -> ReaderT World STM Jumpgate
+closestJumpgate :: NavPosition -> ReaderT NavContext STM Jumpgate
 closestJumpgate p@(Space v t) =
-  ask >>= lift . readTVar . world_jumpgates >>= return . head . (sortBy sortFn) . I.elems
+  ask >>= lift . readTVar . nc_jumpgates >>= return . head . (sortBy sortFn) . I.elems
   where sortFn = compare `on` (\jg -> distance v (jg_vector jg t))
 
-dumbRoutePlanner :: NavPosition -> NavPosition -> ReaderT World STM NavProgram
+dumbRoutePlanner :: NavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
 dumbRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
   | and [t1 == t2, t1 == Hyperspace] = return [NA_MoveTo v2]
   | and [t1 == t2, t1 == Hyperspace] = do
@@ -64,7 +90,13 @@ dumbRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
       , NA_Jump Hyperspace
       , NA_MoveTo v2 ]
 
-smartRoutePlanner :: NavPosition -> NavPosition -> ReaderT World STM NavProgram
+stationRoutePlanner :: NavPosition -> TVar Station -> ReaderT NavContext STM NavProgram
+stationRoutePlanner np tst = do
+  pos <- lift $ checkT spacePosition tst
+  rt <- smartRoutePlanner np pos
+  return $ rt ++ [NA_Dock tst]
+
+smartRoutePlanner :: NavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
 smartRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
   | and [t1 == t2, t1 == Normalspace] = do
     jg1 <- closestJumpgate p1
@@ -99,20 +131,28 @@ jgRoutePlanner jg1 jg2 =
   in map NA_MoveInHyper shortest
   
 
-tickNavProgram :: NavModule -> ReaderT World STM NavModule
-tickNavProgram nm
-  | null (navModule_program nm) = return nm
+tickNavProgram :: Ship -> ReaderT NavContext STM Ship
+tickNavProgram sh
+  | null (navModule_program $ ship_navModule sh) = return sh
   | otherwise = do
+    let nm = ship_navModule sh
     let (p:ps) = navModule_program nm
     let stat = navModule_status nm
+    let topSpeed = shipStats_topSpeed $ ship_stats sh
     (ns, np) <- 
       case p of
-        (NA_MoveTo v) -> return (MovingToSpace 0 v   , ps)
+        (NA_MoveTo v) ->
+          let diff = v - (nav_pos_vec $ spacePosition $ navModule_position nm) 
+              velo = makeLength topSpeed diff
+          in             return (MovingToSpace velo v, ps)
         (NA_Dock tst) -> return (DockingToStation tst, ps)
         NA_Undock     -> return (Undocking           , ps)
         (NA_Jump st)  -> closestJumpgate (spacePosition $ navModule_position nm) >>=
           \jg -> return (Jumping (JE_Jumpgate jg) st , ps)
+        (NA_MoveInHyper jg)
+                      -> return (MovingInHyperspace topSpeed jg, ps)
     case stat of
-      Idle -> return nm{ navModule_status = ns
-                       , navModule_program = np }
-      otherwise -> return nm
+      Idle -> return sh{ ship_navModule = 
+                         nm { navModule_status = ns
+                            , navModule_program = np } }
+      otherwise -> return sh

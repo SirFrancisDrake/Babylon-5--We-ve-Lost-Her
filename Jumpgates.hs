@@ -29,16 +29,16 @@ jg_normal :: Jumpgate -> NavPosition
 jg_normal j = Space (jg_normalV j) Normalspace
 
 jg_hyper :: Jumpgate -> NavPosition
-jg_hyper j = Space (jg_hyperV j) Hyperspace
+jg_hyper = undefined
 
 jg_position :: Jumpgate -> SpaceType -> NavPosition
 jg_position jg t =
   case t of
-    Hyperspace  -> jg_normal jg
-    Normalspace -> jg_hyper  jg
+    Hyperspace  -> undefined
+    Normalspace -> jg_normal jg
 
 jg_vector :: Jumpgate -> SpaceType -> Vector3D
 jg_vector jg t =
   case t of
-    Hyperspace  -> jg_hyperV jg
-    Normalspace -> jg_normalV  jg
+    Hyperspace  -> undefined
+    Normalspace -> jg_normalV jg

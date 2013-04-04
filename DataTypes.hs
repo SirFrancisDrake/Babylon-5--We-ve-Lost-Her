@@ -95,6 +95,8 @@ np_jump jg st =
 data ShipNavPosition = DockedToStation (TVar Station)
                      | DockedToShip (TVar Ship)
                      | SNPSpace NavPosition
+                     | InHyperspaceBetween (Jumpgate, Double) (Jumpgate, Double)
+                     | OnJumpgate Jumpgate
     deriving ()
 
 data NavStatus = Idle 
@@ -103,11 +105,9 @@ data NavStatus = Idle
                | Undocking
                | MovingToSpace { navMoving_velocity :: Vector3D
                                , navMoving_target :: Vector3D }
-               | MovingInHyperspace { navMoving_closingSpeed   :: Double
-                                    , navMoving_remainingDist  :: Double
-                                    , navMoving_targetJumpgate :: Jumpgate
+               | MovingInHyperspace { navMoving_hyperspaceSpeed :: Double
+                                    , navMoving_targetJumpgate  :: Jumpgate
                                     }
-               | MovingToStation (TVar Station)
                | Jumping JumpEngine SpaceType
     deriving ()
 

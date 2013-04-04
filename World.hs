@@ -20,6 +20,7 @@ import Auxiliary.IntMap
 import Auxiliary.StringFunctions
 import Auxiliary.Transactions
 import Auxiliary.Tuples
+import Contexts
 import Currency
 import DataTypes
 import Data.Everything
@@ -145,6 +146,8 @@ cycleEverything = do
     liftIO $ processDocking ships stations
     --lift $ putStrLn "Processing undocking."
     liftIO $ processUndocking ships stations
+    --lift $ putStrLn "Processing navigational programs."
+    liftIO $ processNavPrograms ships world
     --liftIO $ putStrLn "Updating time."
     lift (readTVarIO time) >>= lift . atomically . (writeTVar time) . (1+)
 
@@ -190,9 +193,12 @@ instance Processable Owner where
 
 instance Processable Ship where
     processSTM tsh = do
-      sh <- readTVar tsh
-      let nm = ship_navModule sh
-      writeTVar tsh sh{ ship_navModule = tickMove nm }
+      idle <- checkT isIdle tsh
+      programEmpty <- checkT (null . navModule_program . ship_navModule) tsh
+      checkT isMoving tsh >>= \b -> when b $ do
+        sh <- readTVar tsh
+        let nm = ship_navModule sh
+        writeTVar tsh sh{ ship_navModule = tickMove nm }
 
 cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
 cycleClass timap = readTVarIO timap >>= \imap -> 
@@ -211,7 +217,7 @@ processDocking tships tstations = atomically $ do
 dockShSt :: (TVar Ship) -> (TVar Station) -> STM ()
 dockShSt tsh tst = do
   ship <- readTVar tsh
-  writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle []}
+  writeTVar tsh ship{ ship_navModule = NavModule (DockedToStation tst) Idle [] } -- FIXME
   station <- readTVar tst
   writeTVar tst station{ station_dockingBay =
                           if tsh `notElem` (station_dockingBay station)
@@ -255,16 +261,23 @@ jumpSh tsh = do
   let newModule = (NavModule (SNPSpace newPos) Idle (navModule_program (ship_navModule sh)))
   atomically $ writeTVar tsh sh{ ship_navModule = newModule }
 
--- processNavPrograms :: Ships -> IO ()
--- processNavPrograms = mapM (atomically . processNavProgram)
--- 
--- processNavProgram :: (TVar Ship) -> STM ()
--- processNavProgram tsh = do
---   sh <- readTVar tsh
---   let nprog = 
--- 
+processNavPrograms :: TVar (IntMap (TVar Ship)) -> World -> IO ()
+processNavPrograms shs w = runReaderT genNavContext w >>= \nc -> atomically $ 
+  mapIT (\sh -> runReaderT (processNavProgram nc sh) w) shs
+
+processNavProgram :: NavContext -> TVar Ship -> ReaderT World STM ()
+processNavProgram ctxt tsh = do
+  idle <- lift $ checkT isIdle tsh
+  when idle $ do
+    sh <- lift (readTVar tsh) 
+    nsh <- lift $ runReaderT (tickNavProgram sh) ctxt
+    lift $ writeTVar tsh nsh
+ 
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse = setShipOnCourse
+
+setNavProgram :: (TVar Ship) -> NavProgram -> STM ()
+setNavProgram tsh prg = modifyT (setNavProgramPure prg) tsh
 
 runInterface :: World -> IO ()
 runInterface w = setCursorPosition 0 0 >> clearFromCursorToScreenEnd >>
@@ -410,14 +423,6 @@ canAutopilot = do
   shipIdle <- lift $ checkT isIdle tsh
   return $ not (programEmpty && shipIdle)
 
-data NavContext = NavContext
-  { nc_playerShip   :: TVar Ship
-  , nc_allStations :: [TVar Station]
-  , nc_dockedTo    :: Maybe (TVar Station)
-  , nc_pauseLock   :: MVar ()
-  , nc_worldTime   :: TVar Int
-  }
-
 runNavigationW :: ReaderT World IO (Menu_Result)
 runNavigationW = genNavContext >>= lift . (runReaderT navigation) >> return MR_Top
 
@@ -427,9 +432,10 @@ genNavContext = do
   tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
   tsh  <- getPlayerShipIO
   docked <- liftIO $ readTVarIO tsh >>= return . dockedM
+  let jgs   = world_jumpgates w
   let plock = world_pauseLock w
   let wtime = world_time w
-  return (NavContext tsh tsts docked plock wtime)
+  return (NavContext tsh tsts docked jgs plock wtime)
 
 navSetCourse :: ReaderT NavContext IO (Menu_Result)
 navSetCourse = do
@@ -441,9 +447,11 @@ navSetCourse = do
   if isJust mtst 
     then do 
       stName <- liftIO (readTVarIO (fromJust mtst) >>= return . station_name)
+      let tst = fromJust mtst
       liftIO $ putStrLn $ "You've successfully chosen a destination. It would appear " ++
                           "you're heading towards " ++ stName ++ " now."
-      liftIO $ atomically $ setOnCourse tsh (fromJust mtst)
+      shpos <- liftIO $ atomically $ checkT spacePosition tsh
+      stmRtoIoR (stationRoutePlanner shpos tst) >>= lift . atomically . (setNavProgram tsh)
       return MR_Pop
     else do
       liftIO $ print "Nothing really happened."
@@ -475,6 +483,7 @@ navTravelRedraw slock wtime nc = do
   let tsh = nc_playerShip nc
   runReaderT navDisplay nc
   readTVarIO wtime >>= \t -> putStrLn $ "Ticks AD: " ++ show t
+  atomically (checkT (navModule_program . ship_navModule) tsh) >>= print
   sleep (fromIntegral tickReal)
   programEmpty <- atomically $ checkT (null . navModule_program . ship_navModule) tsh
   shipIdle <- atomically $ checkT isIdle tsh

@@ -30,6 +30,18 @@ instance Num Vector3D where
 
 length (Vector3D x y z) = sqrt( x^2 + y^2 + z^2 )
 
+makeUnit :: Vector3D -> Vector3D
+makeUnit v@(Vector3D x y z) =
+  let m a = a / (length v)
+  in  Vector3D (m x) (m y) (m z)
+
+makeLength :: Double -> Vector3D -> Vector3D
+makeLength ln v = (makeUnit v) * (Vector3D ln ln ln)
+
+computeVelocity :: Double -> Vector3D -> Vector3D -> Vector3D
+computeVelocity topSpeed from to =
+  makeLength topSpeed (to - from)
+
 fromList (x:y:z:[]) = Vector3D x y z
 toList (Vector3D x y z) = [x,y,z]
 

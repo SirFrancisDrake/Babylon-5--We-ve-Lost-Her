@@ -52,9 +52,7 @@ jg_adjacent jg =
   in foldl fn [] (M.keys jgsAdjacency)
 
 jg :: String -> Vector3D -> Jumpgate
-jg n v = 
-  let (Space v1 _) = toHyper (Space v Normalspace)
-  in  Jumpgate n v v1
+jg n v = Jumpgate n v undefined
 
 jg_io              = jg "Io"               (fromList [1,    2,    3])
 jg_earth           = jg "Earth"            (fromList [5,    6,    7])
