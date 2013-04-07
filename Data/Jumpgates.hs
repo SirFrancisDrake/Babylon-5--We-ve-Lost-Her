@@ -20,9 +20,9 @@ jg_startingJumpgates = [ jg_io
 -- to move this map into a TVar. TODO sometime later
 jgsAdjacency :: JumpgateNetwork
 jgsAdjacency = M.fromList
-  [ ((jg_earth, jg_io)                     ,  900.0)
-  , ((jg_alphaCentauri, jg_earth)          ,  700.0)
-  , ((jg_alphaCentauri, jg_proximaCentauri), 1500.0)
+  [ ((jg_earth, jg_io)                     , 30.0)
+  , ((jg_alphaCentauri, jg_earth)          , 30.0)
+  , ((jg_alphaCentauri, jg_proximaCentauri), 30.0)
   ]
 
 jgsDistance :: Jumpgate -> Jumpgate -> Double

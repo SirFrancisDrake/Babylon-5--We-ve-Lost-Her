@@ -1,7 +1,11 @@
+
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Babylon where
 
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Exception
 import System.Posix (sleep)
 
 import DataTypes
@@ -28,8 +32,7 @@ magic = debStartingInput >>= uncurry makeNewWorld
 main = do
   w <- magic
   stopLock <- newTVarIO False
-  pauseLock <- newMVar ()
-  forkIO $ gameCycleIO w stopLock pauseLock
+  forkIO $ handle (\(_ :: SomeException ) -> putStrLn $ replicate 1000 'X') (gameCycleIO w stopLock)
   sleep 1
   runInterface w
   atomically $ writeTVar stopLock True

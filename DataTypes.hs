@@ -58,7 +58,7 @@ data PersonalInfo =
            , pi_person_career :: Career
            }
   | Nation { pi_nation_something :: Int }
-    deriving (Eq, Show)
+    deriving (Eq)
 
 -- SHIPS.HS
 
@@ -67,6 +67,27 @@ data NavModule = NavModule { navModule_position :: ShipNavPosition
                            , navModule_program :: NavProgram
                            }
     deriving ()
+
+instance Show NavModule where
+  show (NavModule pos stat prog) =
+    let posD = case pos of
+          (DockedToStation _) -> "Docked. "
+          (SNPSpace p) -> "space, " ++ show p
+          (OnJumpgate jg) -> "on jumpgate to " ++ jg_name jg
+          (InHyperspaceBetween (jg1,d1) (jg2,d2)) ->
+            "in hyperspace, " ++ show d1 ++ " to " ++ jg_name jg1 ++
+            " jumpgate, " ++ show d2 ++ " to " ++ jg_name jg2 ++ "jumpgate"
+        statD = case stat of
+          Idle -> " Idle" ++ "\n"
+          (DockingToStation _) -> "Docking" ++ "\n"
+          (DockingToShip _) -> "Docking" ++ "\n"
+          (Jumping _ t) -> "Jumping to " ++ show t ++ "\n"
+          (MovingInHyperspace v jg) -> "Moving towards " ++ jg_name jg ++ 
+            " jumpgate, " ++ show v ++ "kps" ++ "\n"
+          (MovingToSpace v t) -> "Moving to " ++ show t ++ "\nVelocity: " ++ show v
+        progD = show prog
+    in "Position: " ++ posD ++ "\nStatus: " ++ statD ++ "\n" ++ progD
+
 
 data NavAction =
   NA_MoveTo Vector3D

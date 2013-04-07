@@ -1,11 +1,12 @@
 module Ships where
 
 import Control.Concurrent.STM
-import Data.IntMap hiding (fromList)
+import Data.IntMap hiding (fromList, null)
 import qualified Data.IntMap as I (fromList)
 import Prelude hiding (length)
 
 import Currency
+import Data.Jumpgates
 import DataTypes
 import ErrorMessages
 import GlobalConst (tickGame)
@@ -55,6 +56,7 @@ isMoving s =
 jumping :: Ship -> Bool
 jumping s = jumpingNS (navModule_status $ ship_navModule s)
             where jumpingNS (Jumping _ _) = True
+                  jumpingNS _ = False
 
 dockingSt :: Ship -> (TVar Station)
 dockingSt = dockingStNS . navModule_status . ship_navModule
@@ -82,6 +84,17 @@ dockedToSt = dockedToStNS . navModule_position . ship_navModule
              where dockedToStNS (DockedToStation i) j = i == j
                    dockedToStNS _ _ = False
 
+inHyper :: Ship -> Bool
+inHyper = 
+  let fn (InHyperspaceBetween _ _) = True
+      fn (OnJumpgate _) = True
+      fn (SNPSpace (Space _ t)) = t == Hyperspace
+      fn _ = False
+  in fn . navModule_position . ship_navModule
+
+navProgramEmpty :: Ship -> Bool
+navProgramEmpty = null . navModule_program . ship_navModule
+
 ship_freeSpace :: Ship -> Weight
 ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (ship_cargo s)
 
@@ -89,18 +102,19 @@ tick = tickGame -- WARNING: MAGIC CONSTANT
                 -- tickGame imported from GlobalConst
 
 tickMove :: NavModule -> NavModule -- ignores SpaceType FIXME
-tickMove m@(NavModule pos Idle _) = m 
-tickMove m@(NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
+tickMove (NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
     let diff = vel * (fromInteger tickGame)
         posIfKeepMoving = pos + diff
         closeEnough = length( targ-pos ) <= length diff
     in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle p
                       else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ) p
-tickMove m@(NavModule (InHyperspaceBetween p1@(jg1, d1) p2@(jg2, d2)) s@(MovingInHyperspace vel targ) p) =
-    let targDist = if targ == jg1 then d1 else d2
-        distCovered = vel * (fromIntegral tick)
-        pr (jg,d) = if targ == jg then (jg, d - distCovered) else (jg, d + distCovered)
-    in  if distCovered >= targDist
-          then NavModule (OnJumpgate targ) Idle p
-          else NavModule (InHyperspaceBetween (pr p1) (pr p2)) s p
+tickMove (NavModule (OnJumpgate start) s@(MovingInHyperspace vel end) p) =
+  NavModule (InHyperspaceBetween (start, 0) (end, (jgsDistance start end))) s p
+tickMove (NavModule (InHyperspaceBetween p1@(jg1, d1) p2@(jg2, d2)) s@(MovingInHyperspace vel targ) p) =
+  let targDist = if targ == jg1 then d1 else d2
+      distCovered = vel * (fromIntegral tick)
+      pr (jg,d) = if targ == jg then (jg, d - distCovered) else (jg, d + distCovered)
+  in  if distCovered >= targDist
+        then NavModule (OnJumpgate targ) Idle p
+        else NavModule (InHyperspaceBetween (pr p1) (pr p2)) s p
 tickMove n = n

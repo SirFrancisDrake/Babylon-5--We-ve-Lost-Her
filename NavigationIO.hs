@@ -31,6 +31,11 @@ setNavStatus tsh ns = readTVar tsh >>= \sh ->
   writeTVar tsh sh{ ship_navModule =
     (ship_navModule sh){ navModule_status = ns } }
 
+setNavPosition :: (TVar Ship) -> ShipNavPosition -> STM ()
+setNavPosition tsh snp = readTVar tsh >>= \sh ->
+  writeTVar tsh sh{ ship_navModule =
+    (ship_navModule sh){ navModule_position = snp } }
+
 setNavProgramPure :: NavProgram -> Ship -> Ship
 setNavProgramPure prg sh =
   let nm = ship_navModule sh
@@ -52,43 +57,25 @@ departureAround :: NavPosition -> NavPosition
 departureAround (Space (Vector3D x y z) t) =
   Space (Vector3D (x + 1/10) (y + 1/10) (z + 1/10)) t
 
-jump :: NavPosition -> SpaceType -> IO NavPosition
-jump entryPoint stype = 
-  randomizeAround (toSpaceType stype entryPoint) const_jg_exit_radius
-
--- STM not required, but it will be when we get to jump-capable ships
-getJumpEnginePos :: NavStatus -> SpaceType -> STM NavPosition
-getJumpEnginePos (Jumping (JE_Jumpgate jg) _) stype =
+jump :: Jumpgate -> SpaceType -> IO ShipNavPosition
+jump jg stype = 
   case stype of
-    Normalspace -> return (jg_normal jg)
-    Hyperspace -> return (jg_hyper jg)
+    Hyperspace -> return $ OnJumpgate jg
+    Normalspace -> 
+      randomizeAround (jg_normal jg) const_jg_exit_radius >>= return . SNPSpace
 
-closestJumpgate :: NavPosition -> ReaderT NavContext STM Jumpgate
-closestJumpgate p@(Space v t) =
+closestJumpgate :: ShipNavPosition -> ReaderT NavContext STM Jumpgate
+closestJumpgate p@(SNPSpace (Space v t)) =
   ask >>= lift . readTVar . nc_jumpgates >>= return . head . (sortBy sortFn) . I.elems
   where sortFn = compare `on` (\jg -> distance v (jg_vector jg t))
+closestJumpgate (InHyperspaceBetween (jg1, d1) (jg2, d2)) =
+  if d1 <= d2 
+    then return jg1
+    else return jg2
+closestJumpgate (OnJumpgate jg) = return jg
 
-dumbRoutePlanner :: NavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
-dumbRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
-  | and [t1 == t2, t1 == Hyperspace] = return [NA_MoveTo v2]
-  | and [t1 == t2, t1 == Hyperspace] = do
-    jg1 <- closestJumpgate p1
-    jg2 <- closestJumpgate p2
-    return [ NA_MoveTo (jg_vector jg1 Normalspace)
-           , NA_Jump Hyperspace
-           , NA_MoveTo (jg_vector jg2 Hyperspace)
-           , NA_Jump Normalspace
-           , NA_MoveTo v2 ]
-  | t1 == Hyperspace = closestJumpgate p2 >>= \jg -> 
-    return
-     [ NA_MoveTo (jg_vector jg Hyperspace)
-     , NA_Jump Normalspace
-     , NA_MoveTo v2 ]
-  | t1 == Normalspace = closestJumpgate p1 >>= \jg -> 
-    return
-      [ NA_MoveTo (jg_vector jg Normalspace)
-      , NA_Jump Hyperspace
-      , NA_MoveTo v2 ]
+closestJumpgateNP :: NavPosition -> ReaderT NavContext STM Jumpgate
+closestJumpgateNP np = closestJumpgate (SNPSpace np)
 
 stationRoutePlanner :: NavPosition -> TVar Station -> ReaderT NavContext STM NavProgram
 stationRoutePlanner np tst = do
@@ -99,9 +86,12 @@ stationRoutePlanner np tst = do
 smartRoutePlanner :: NavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
 smartRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
   | and [t1 == t2, t1 == Normalspace] = do
-    jg1 <- closestJumpgate p1
-    jg2 <- closestJumpgate p2
-    return $ [ NA_MoveTo (jg_vector jg1 Normalspace)
+    jg1 <- closestJumpgateNP p1
+    jg2 <- closestJumpgateNP p2
+    if jg1 == jg2
+      then return [ NA_MoveTo v2 ]
+      else return $ 
+             [ NA_MoveTo (jg_vector jg1 Normalspace)
              , NA_Jump Hyperspace ]
              ++ (jgRoutePlanner jg1 jg2) ++
              [ NA_Jump Normalspace
@@ -128,7 +118,7 @@ jgRoutePlanner jg1 jg2 =
           then error $ "NavigationIO: jgRoutePlanner: can't find a route " ++
                  "from " ++ show jg1 ++ " to " ++ show jg2
           else head $ sortBy (on compare sumDistance) routes
-  in map NA_MoveInHyper shortest
+  in map NA_MoveInHyper (tail shortest)
   
 
 tickNavProgram :: Ship -> ReaderT NavContext STM Ship
@@ -147,7 +137,7 @@ tickNavProgram sh
           in             return (MovingToSpace velo v, ps)
         (NA_Dock tst) -> return (DockingToStation tst, ps)
         NA_Undock     -> return (Undocking           , ps)
-        (NA_Jump st)  -> closestJumpgate (spacePosition $ navModule_position nm) >>=
+        (NA_Jump st)  -> closestJumpgate (navModule_position nm) >>=
           \jg -> return (Jumping (JE_Jumpgate jg) st , ps)
         (NA_MoveInHyper jg)
                       -> return (MovingInHyperspace topSpeed jg, ps)
