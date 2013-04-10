@@ -1,16 +1,18 @@
-module Auxiliary.Zipper 
-( Zipper(..)
-, toList
-, selectBy
-, select
-)
-where
+
+module Auxiliary.Zipper where
 
 data Zipper a = Zipper
   { zip_current :: a
   , zip_others :: [a]
   }
   deriving (Eq, Show)
+
+rotate :: Zipper a -> Zipper a
+rotate (Zipper a (b:as)) = Zipper b (as ++ [a])
+
+fromList :: [a] -> Zipper a
+fromList [] = error "Zipper: can't make a Zipper from an empty list"
+fromList (p:ps) = Zipper p ps
 
 toList :: Zipper a -> [a]
 toList (Zipper z zs) = z:zs

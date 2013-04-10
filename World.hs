@@ -36,6 +36,7 @@ import Ships
 import ShipsAndStations
 import Space
 import Stock
+import TradeIO
 import Wares
 import WorldGenerator
 import Wrappers
@@ -517,15 +518,13 @@ discoverJumpgate jg tp = readTVar tp >>= \p ->
         then return ()
         else writeTVar tp p{ player_knownJumpgates = jg:jgs }
 
-type TradeContext = (TVar Owner, TVar Ship, TVar Station)
-
 runTradeW :: ReaderT World IO (Menu_Result)
 runTradeW = do
   w <- ask
   to  <- getPlayerIO
   tsh <- getPlayerShipIO 
   tst <- liftIO $ readTVarIO tsh >>= return . dockedSt
-  lift $ runReaderT trade (to, tsh, tst)
+  lift $ runReaderT trade (genTradeContext to tsh tst)
   return MR_Pop
 
 runTrade :: TVar Owner -> TVar Ship -> TVar Station -> IO ()
@@ -536,64 +535,12 @@ trade = do
   action <- liftIO getLine
   case parseAnyOf allTradeActions action of
     (Just (Buy  (w,a) )) -> do
-      buy  w a
+      stmRtoIoR $ buy w a
       liftIO $ putStrLn $ "You buy " ++ show a ++ " of " ++ show w
     (Just (Sell (w,a) )) -> do
-      sell w a
+      stmRtoIoR $ sell w a
       liftIO $ putStrLn $ "You sell " ++ show a ++ " of " ++ show w
     Nothing -> trade
   if action == "quit"
     then return ()
     else trade
-
-canBuy :: Ware -> Amount -> ReaderT TradeContext IO Bool
-canBuy bw ba = do
-  (to, tsh, tst) <- ask
-  liftIO $ do
-    sh <- readTVarIO tsh
-    st <- readTVarIO tst
-    o <- readTVarIO to
-    let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
-    let enoughMoneyP = owner_money o >= stockSellTotal st bw ba
-    let enoughWareP = enoughWarePure bw ba st
-    return $ and [enoughSpaceP, enoughMoneyP, enoughWareP] 
-
-buy :: Ware -> Amount -> ReaderT TradeContext IO ()
-buy bw ba = do
-  (to, tsh, tst) <- ask
-  st <- liftIO $ readTVarIO tst
-  cb <- canBuy bw ba
-
-  liftIO $
-    if cb then atomically $ do
-            removeWare bw ba tst
-            addWare bw ba tsh
-            removeMoney (stockSellTotal st bw ba) to
-            addMoney (stockSellTotal st bw ba) tst
-          else return ()
-
-canSell :: Ware -> Amount -> ReaderT TradeContext IO Bool
-canSell sw sa = do
-  (to, tsh, tst) <- ask
-  liftIO $ do
-    o <- readTVarIO to
-    sh <- readTVarIO tsh
-    st <- readTVarIO tst
-    let enoughMoneyP = station_money st >= stockBuyTotal st sw sa
-    let enoughWareP = enoughWarePure sw sa sh
-
-    return $ and [enoughMoneyP, enoughWareP] 
-
-sell :: Ware -> Amount -> ReaderT TradeContext IO ()
-sell sw sa = do
-  (to, tsh, tst) <- ask
-  st <- liftIO $ readTVarIO tst
-  cs <- canSell sw sa
-
-  liftIO $
-    if cs then atomically $ do
-            removeWare sw sa tsh
-            addWare sw sa tst
-            removeMoney (stockBuyTotal st sw sa) tst
-            addMoney (stockBuyTotal st sw sa) to
-          else return ()

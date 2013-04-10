@@ -10,6 +10,7 @@ import Data.IntMap hiding (fromList, map)
 
 import Auxiliary.IntMap
 import Auxiliary.Transactions (liftToTVar)
+import qualified Auxiliary.Zipper as Z
 import Currency
 import InterfaceShow
 import Jumpgates
@@ -25,12 +26,10 @@ import Wrappers
 
 -- AI.HS
 
-data ShipAI = ShipAI { zai_current :: SCommand -- Why not Zipper SCommand?
-                     , zai_list :: [SCommand]
-                     }
+data ShipAI = ShipAI (Z.Zipper SCommand)
             | SAIPlayer
             | SAINone
-    deriving ()
+    deriving (Eq)
 
 data SCommand = SGo (TVar Station) | SBuy Ware Amount | SSell Ware Amount
     deriving (Eq)
