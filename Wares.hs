@@ -140,12 +140,14 @@ instance WareOps Cargo where
                                               else acc
         in foldl' fn (-1) ws
 
-class WareOps a where
+class WareOps a where -- minimal declaration: addWarePure, checkWarePure
     addWarePure      :: Ware -> Amount -> a -> a
     checkWarePure    :: Ware -> a -> Amount
     removeWarePure   :: Ware -> Amount -> a -> a
     enoughWarePure   :: Ware -> Amount -> a -> Bool
     mbRemoveWarePure :: Ware -> Amount -> a -> Maybe a
+
+    enoughWarePure w a obj = a <= checkWarePure w obj
 
     addWare    :: Ware -> Amount -> TVar a -> STM ()
     addWare w a = modifyT (addWarePure w a)

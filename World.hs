@@ -1,7 +1,7 @@
 
 module World where
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent
 import Control.Concurrent.STM hiding (check)
 import Control.Monad (forM)
@@ -138,16 +138,15 @@ cycleEverything = do
     let stations = world_stations world
     let time = world_time world
     -- lift $ putStrLn "Updating owners."
-    liftIO $ cycleClass owners
+    processIT owners
     -- lift $ putStrLn "Updating stations."
-    liftIO $ cycleClass stations 
+    processIT stations 
     --lift $ putStrLn "Updating ships."
-    lift $ processIT ships
-    -- liftIO $ cycleClass ships 
+    processIT ships
     --lift $ putStrLn "Processing docking."
-    liftIO $ processDocking ships stations
+    processDocking
     --lift $ putStrLn "Processing undocking."
-    liftIO $ processUndocking ships stations
+    processUndocking
     --lift $ putStrLn "Processing navigational programs."
     liftIO $ processNavPrograms ships world
     liftIO $ processJumping ships
@@ -167,15 +166,15 @@ printClass tmap = readTVarIO tmap >>=
 
 -- minimal declaration: processSTM
 class Processable a where
-    process :: TVar a -> IO ()
-    processSTM :: TVar a -> STM ()
-    process = atomically . processSTM
-    processIT :: TVar (IntMap (TVar a)) -> IO ()
-    processIT = atomically . (mapIT processSTM)
+    process :: TVar a -> ReaderT World IO ()
+    processSTM :: TVar a -> ReaderT World STM ()
+    process = stmRtoIoR . processSTM
+    processIT :: TVar (IntMap (TVar a)) -> ReaderT World IO ()
+    processIT = stmRtoIoR . (mapITR processSTM)
 
 instance Processable Station where
     processSTM tst = 
-      readTVar tst >>= (writeTVar tst) . stationFns
+      lift (readTVar tst) >>= lift . (writeTVar tst) . stationFns
       where stationFns = foldl' (.) id
                                 [ (\st -> addMoneyPure 3000 st) -- example tax income
                                 ]
@@ -185,20 +184,18 @@ instance Processable Owner where
 
 instance Processable Ship where
     processSTM tsh = do
-      sh <- readTVar tsh
+      sh <- lift $ readTVar tsh
       let nm = ship_navModule sh
-      writeTVar tsh sh{ ship_navModule = tickMove nm }
-
-cycleClass :: (Processable a) => TVar (IntMap (TVar a)) -> IO ()
-cycleClass timap = readTVarIO timap >>= \imap -> 
-                                 mapM_ (\k -> process (imap ! k)) (keys imap)
+      lift $ writeTVar tsh sh{ ship_navModule = tickMove nm }
 
 -- Appendix-like remain. I let it stay for clearness its name provides just once
-dockMissing :: Ships -> Stations -> IO ()
 dockMissing = processDocking
 
-processDocking :: Ships -> Stations -> IO ()
-processDocking tships tstations = atomically $ do
+processDocking :: ReaderT World IO ()
+processDocking = ask >>= \w -> lift $ processDocking' (world_ships w) (world_stations w)
+
+processDocking' :: Ships -> Stations -> IO ()
+processDocking' tships tstations = atomically $ do
   needDocking <- filterIT docking tships
   dockingStations <- mapM (checkT dockingSt) needDocking
   mapM_ (uncurry dockShSt) (zip needDocking dockingStations)
@@ -213,8 +210,11 @@ dockShSt tsh tst = do
                             then (station_dockingBay station) ++ [tsh] 
                             else station_dockingBay station }
 
-processUndocking :: Ships -> Stations -> IO ()
-processUndocking tships tstations = atomically $ do
+processUndocking :: ReaderT World IO ()
+processUndocking = ask >>= \w -> lift $ processUndocking' (world_ships w) (world_stations w)
+
+processUndocking' :: Ships -> Stations -> IO ()
+processUndocking' tships tstations = atomically $ do
   needUndocking <- filterIT undocking tships
   undockingStations <- mapM (checkT dockingSt) needUndocking
   mapM_ (uncurry undockShSt) (zip needUndocking undockingStations)
@@ -554,7 +554,7 @@ canBuy bw ba = do
     st <- readTVarIO tst
     o <- readTVarIO to
     let enoughSpaceP = ship_freeSpace sh >= weight bw * fromIntegral ba
-    let enoughMoneyP = owner_money o >= stockSellPrice st bw * fromIntegral ba
+    let enoughMoneyP = owner_money o >= stockSellTotal st bw ba
     let enoughWareP = enoughWarePure bw ba st
     return $ and [enoughSpaceP, enoughMoneyP, enoughWareP] 
 
@@ -568,8 +568,8 @@ buy bw ba = do
     if cb then atomically $ do
             removeWare bw ba tst
             addWare bw ba tsh
-            removeMoney (stockSellPrice st bw * fromIntegral ba) to
-            addMoney (stockSellPrice st bw * fromIntegral ba) tst
+            removeMoney (stockSellTotal st bw ba) to
+            addMoney (stockSellTotal st bw ba) tst
           else return ()
 
 canSell :: Ware -> Amount -> ReaderT TradeContext IO Bool
@@ -579,7 +579,7 @@ canSell sw sa = do
     o <- readTVarIO to
     sh <- readTVarIO tsh
     st <- readTVarIO tst
-    let enoughMoneyP = station_money st >= stockBuyPrice st sw * fromIntegral sa
+    let enoughMoneyP = station_money st >= stockBuyTotal st sw sa
     let enoughWareP = enoughWarePure sw sa sh
 
     return $ and [enoughMoneyP, enoughWareP] 
@@ -594,6 +594,6 @@ sell sw sa = do
     if cs then atomically $ do
             removeWare sw sa tsh
             addWare sw sa tst
-            removeMoney (stockBuyPrice st sw * fromIntegral sa) tst
-            addMoney (stockBuyPrice st sw * fromIntegral sa) to
+            removeMoney (stockBuyTotal st sw sa) tst
+            addMoney (stockBuyTotal st sw sa) to
           else return ()

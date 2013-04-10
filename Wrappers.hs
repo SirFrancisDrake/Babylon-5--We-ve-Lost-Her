@@ -16,8 +16,7 @@ type SpaceDistance = Double
 type StationID = Int
 
 -- Stock.hs
-type BuyPrice = Money
-type SellPrice = Money
+type Price = Money
 type DesiredAmount = Amount
 
 -- Wares.hs

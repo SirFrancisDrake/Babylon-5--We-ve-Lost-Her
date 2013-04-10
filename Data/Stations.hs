@@ -23,11 +23,13 @@ gibarianStations = [ solarisOne
 citadelStation :: Station
 citadelStation = Station "Citadel station" 
                          (Space (V.fromList [0,0,0]) Normalspace)
-                         (makeStock [ (Fuel,10,0,0,30)
-                                    , (Books,20,0,0,15)
-                                    , (CyberModules,300,0,0,270)
-                                    , (Silicium,1,0,0,400)
-                                    ])
+                                    -- Ware   minPrice maxPrice cAmount mAmount
+                         (makeStock [ (Fuel        , 10,  100,  0,  30)
+                                    , (Books       , 20,  100,  0,  15)
+                                    , (CyberModules, 300, 1000, 0, 270)
+                                    , (Silicium    , 7,   40,   0, 400)
+                                    ]
+                                    StockItemBoth )
                          defaultMoney 
                          [] 
                          undefined -- TriOptimum Corp.
@@ -37,7 +39,7 @@ citadelStation = Station "Citadel station"
 solarisOne :: Station
 solarisOne = Station "Solaris research station" 
                      (Space (V.fromList [120,300,451]) Normalspace)
-                     defaultStock 
+                     (makeStock [] StockItemBoth) 
                      defaultMoney 
                      [] 
                      undefined -- Gibarian Inc.
@@ -47,7 +49,7 @@ solarisOne = Station "Solaris research station"
 minbariPrime :: Station
 minbariPrime = Station "Minbari Prime" 
                      (Space (V.fromList [320,100,23]) Normalspace)
-                     defaultStock 
+                     (makeStock [] StockItemBoth)
                      defaultMoney 
                      [] 
                      undefined -- Minbari Republic

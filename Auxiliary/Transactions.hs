@@ -2,6 +2,7 @@ module Auxiliary.Transactions where
 
 import Control.Concurrent.STM
 import Control.Monad (filterM)
+import Control.Monad.Reader
 import Data.IntMap
 
 import Auxiliary.IntMap
@@ -22,6 +23,9 @@ filterIT p its = readTVar its >>= (filterT p) . vals
 
 mapIT :: (TVar a -> STM ()) -> (TVar (IntMap (TVar a))) -> STM ()
 mapIT fn its = readTVar its >>= (mapM_ fn) . vals
+
+mapITR :: (TVar a -> ReaderT b STM ()) -> (TVar (IntMap (TVar a))) -> ReaderT b STM ()
+mapITR fn c = lift (readTVar c) >>= (mapM_ fn) . vals
 
 -- filterT :: [(TVar a)] -> (a -> Bool) -> STM [(TVar a)]
 -- filterT ts p = 

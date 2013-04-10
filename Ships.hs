@@ -104,8 +104,8 @@ tick = tickGame -- WARNING: MAGIC CONSTANT
 tickMove :: NavModule -> NavModule -- ignores SpaceType FIXME
 tickMove (NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
     let diff = vel * (fromInteger tickGame)
-        posIfKeepMoving = pos + diff
         closeEnough = length( targ-pos ) <= length diff
+        posIfKeepMoving = pos + diff
     in if closeEnough then NavModule (SNPSpace (Space targ st)) Idle p
                       else NavModule (SNPSpace (Space posIfKeepMoving st)) (MovingToSpace vel targ) p
 tickMove (NavModule (OnJumpgate start) s@(MovingInHyperspace vel end) p) =
