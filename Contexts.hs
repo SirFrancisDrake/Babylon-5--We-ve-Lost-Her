@@ -44,15 +44,7 @@ genNavContext tsh = do
   return (NavContext tsh tsts docked jgs plock wtime)
 
 genNavContextR :: ReaderT World STM NavContext
-genNavContextR = do
-  w <- ask
-  tsts <- lift (readTVar (world_stations w)) >>= return . vals
-  tsh  <- getPlayerShipSTM
-  docked <- lift (readTVar tsh) >>= return . dockedM
-  let jgs   = world_jumpgates w
-  let plock = world_pauseLock w
-  let wtime = world_time w
-  return (NavContext tsh tsts docked jgs plock wtime)
+genNavContextR = getPlayerShipSTM >>= genNavContext
 
 type TradeContext = (TVar Owner, TVar Ship, TVar Station)
 
