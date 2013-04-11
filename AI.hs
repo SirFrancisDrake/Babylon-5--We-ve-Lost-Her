@@ -7,6 +7,7 @@ import Auxiliary.Zipper
 import Contexts
 import Currency
 import DataTypes
+import NavigationIO
 import Owner
 import Ships
 import TradeIO
@@ -52,15 +53,21 @@ processAI tsh = do
     (SGo tst) -> 
       case dockedM sh of
         (Just tst) -> 
-          case ai_next ai of
-            SBuy w a -> do
-              t <- return $ genTradeContext to tsh tst
-              lift $ runReaderT (buy w a) t
-              lift $ writeTVar tsh sh{ ship_AI = ai_rotn 2 ai }
-            SSell w a -> do
-              t <- return $ genTradeContext to tsh tst
-              lift $ runReaderT (sell w a) t
-              lift $ writeTVar tsh sh{ ship_AI = ai_rotn 2 ai }
+          let rotateCourse = do
+                lift $ writeTVar tsh sh{ ship_AI = ai_rotn 2 ai }
+                shpos <- lift (readTVar tsh) >>= return . navModule_position . ship_navModule
+                nc <- genNavContext tsh
+                lift $ runReaderT (stationRoutePlanner shpos tst) nc >>= setNavProgram tsh
+          in  case ai_next ai of
+                SBuy w a -> do
+                  t <- return $ genTradeContext to tsh tst
+                  lift $ runReaderT (buy w a) t
+                  rotateCourse
+                SSell w a -> do
+                  t <- return $ genTradeContext to tsh tst
+                  lift $ runReaderT (sell w a) t
+                  lift $ writeTVar tsh sh{ ship_AI = ai_rotn 2 ai }
+                  rotateCourse
         otherwise -> return ()
     otherwise -> undefined
           

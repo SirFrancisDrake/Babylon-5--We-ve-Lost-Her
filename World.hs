@@ -249,7 +249,8 @@ jumpSh tsh = do
   
 
 processNavPrograms :: TVar (IntMap (TVar Ship)) -> World -> IO ()
-processNavPrograms shs w = runReaderT genNavContext w >>= \nc -> atomically $ 
+processNavPrograms shs w = atomically $ 
+  runReaderT genNavContextR w >>= \nc ->  
   mapIT (\sh -> runReaderT (processNavProgram nc sh) w) shs
 
 processNavProgram :: NavContext -> TVar Ship -> ReaderT World STM ()
@@ -262,9 +263,6 @@ processNavProgram ctxt tsh = do
  
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse = setShipOnCourse
-
-setNavProgram :: (TVar Ship) -> NavProgram -> STM ()
-setNavProgram tsh prg = modifyT (setNavProgramPure prg) tsh
 
 runInterface :: World -> IO ()
 runInterface w = 
@@ -283,21 +281,6 @@ runInterface w =
 --     , MonadTrans t
 --     , Monad m) =>
 --     (TVar (IntMap (TVar Ship)) -> m (IntMap b)) -> t m b
-
-stmRtoIoR :: ReaderT a STM r -> ReaderT a IO r
-stmRtoIoR r1 = ask >>= liftIO . atomically . (runReaderT r1)
-
-getPlayerShipSTM :: ReaderT World STM (TVar Ship)
-getPlayerShipSTM = ask >>= lift . readTVar . world_player >>= return . player_selectedShip
-
-getPlayerSTM :: ReaderT World STM (TVar Owner)
-getPlayerSTM = ask >>= lift . readTVar . world_player >>= return . player_owner
-
-getPlayerShipIO :: ReaderT World IO (TVar Ship)
-getPlayerShipIO = stmRtoIoR getPlayerShipSTM
-
-getPlayerIO :: ReaderT World IO (TVar Owner)
-getPlayerIO = stmRtoIoR getPlayerSTM
 
 data Menu_ActionAfter =
   MAA_Depends
@@ -407,18 +390,7 @@ canAutopilot = do
   return $ not (programEmpty && shipIdle)
 
 runNavigationW :: ReaderT World IO (Menu_Result)
-runNavigationW = genNavContext >>= lift . (runReaderT navigation) >> return MR_Top
-
-genNavContext :: ReaderT World IO NavContext
-genNavContext = do
-  w <- ask
-  tsts <- liftIO $ readTVarIO (world_stations w) >>= return . vals
-  tsh  <- getPlayerShipIO
-  docked <- liftIO $ readTVarIO tsh >>= return . dockedM
-  let jgs   = world_jumpgates w
-  let plock = world_pauseLock w
-  let wtime = world_time w
-  return (NavContext tsh tsts docked jgs plock wtime)
+runNavigationW = stmRtoIoR genNavContextR >>= lift . (runReaderT navigation) >> return MR_Top
 
 navSetCourse :: ReaderT NavContext IO (Menu_Result)
 navSetCourse = do

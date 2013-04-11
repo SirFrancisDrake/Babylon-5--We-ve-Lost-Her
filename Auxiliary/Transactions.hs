@@ -7,6 +7,9 @@ import Data.IntMap
 
 import Auxiliary.IntMap
 
+stmRtoIoR :: ReaderT a STM r -> ReaderT a IO r
+stmRtoIoR r1 = ask >>= liftIO . atomically . (runReaderT r1)
+
 modifyT :: (a -> a) -> (TVar a) -> STM ()
 modifyT fn t = readTVar t >>= (writeTVar t) . fn
 

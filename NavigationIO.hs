@@ -77,14 +77,14 @@ closestJumpgate (OnJumpgate jg) = return jg
 closestJumpgateNP :: NavPosition -> ReaderT NavContext STM Jumpgate
 closestJumpgateNP np = closestJumpgate (SNPSpace np)
 
-stationRoutePlanner :: NavPosition -> TVar Station -> ReaderT NavContext STM NavProgram
+stationRoutePlanner :: ShipNavPosition -> TVar Station -> ReaderT NavContext STM NavProgram
 stationRoutePlanner np tst = do
   pos <- lift $ checkT spacePosition tst
   rt <- smartRoutePlanner np pos
   return $ rt ++ [NA_Dock tst]
 
-smartRoutePlanner :: NavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
-smartRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
+smartRoutePlanner :: ShipNavPosition -> NavPosition -> ReaderT NavContext STM NavProgram
+smartRoutePlanner (SNPSpace p1@(Space v1 t1)) p2@(Space v2 t2)
   | and [t1 == t2, t1 == Normalspace] = do
     jg1 <- closestJumpgateNP p1
     jg2 <- closestJumpgateNP p2
@@ -97,6 +97,8 @@ smartRoutePlanner p1@(Space v1 t1) p2@(Space v2 t2)
              [ NA_Jump Normalspace
              , NA_MoveTo v2 ]
   | otherwise = error "Traveling in hyperspace is restricted to jumpgates " -- TODO
+smartRoutePlanner (DockedToStation tst) p2@(Space v2 t2) =
+  lift (readTVar tst) >>= \st -> smartRoutePlanner (SNPSpace (spacePosition st)) p2  
 --  | and [t1 == t2, t1 == Hyperspace] = return [NA_MoveTo v2]
 --  | t1 == Hyperspace = closestJumpgate p2 >>= \jg -> 
 --    return
@@ -146,3 +148,7 @@ tickNavProgram sh
                          nm { navModule_status = ns
                             , navModule_program = np } }
       otherwise -> return sh
+
+setNavProgram :: (TVar Ship) -> NavProgram -> STM ()
+setNavProgram tsh prg = modifyT (setNavProgramPure prg) tsh
+
