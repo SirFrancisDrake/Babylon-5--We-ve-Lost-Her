@@ -8,9 +8,45 @@ import Data.Function (on)
 import Data.List (foldl', intersperse, sort, sortBy)
 import qualified Data.Map as M
 
-import GlobalConst (const_pricing_buyToFair, const_pricing_sellToFair)
+import GlobalConst (const_deficit, const_abundancy
+                   , const_pricing_buyToFair, const_pricing_sellToFair)
 import Wares
 import Wrappers
+
+data PricingModel = PricingModel
+  { pricing_bothBuy      :: PricingFn
+  , pricing_bothSell     :: PricingFn
+  , pricing_consumerBuy  :: PricingFn
+  , pricing_producerSell :: PricingFn
+  }
+
+type PricingFn = Price -> Price -> Amount -> Amount -> Amount -> Price
+
+abundancyDeficitPricing :: PricingModel
+abundancyDeficitPricing = PricingModel
+  { pricing_bothBuy      = mixedBuy
+  , pricing_consumerBuy  = \a b c d _ -> buyPrice  a b c d
+  , pricing_bothSell     = mixedSell
+  , pricing_producerSell = \a b c d _ -> sellPrice a b c d
+  }
+
+portRoyalePricing :: PricingModel
+portRoyalePricing = PricingModel
+  { pricing_bothBuy      =   deficitPricing
+  , pricing_consumerBuy  =   deficitPricing
+  , pricing_bothSell     = abundancyPricing
+  , pricing_producerSell = abundancyPricing
+  }
+
+xTensionPricing :: PricingModel
+xTensionPricing = PricingModel
+  { pricing_bothBuy      = \a b c d _  -> buyPrice  a b c d
+  , pricing_consumerBuy  = \a b c d _  -> buyPrice  a b c d
+  , pricing_bothSell     = \a b c d _  -> sellPrice a b c d
+  , pricing_producerSell = \a b c d _  -> sellPrice a b c d
+  }
+
+globalPricing = abundancyDeficitPricing
 
 sigmoid t = 1 / (1 + exp( (t - 0.5)*5.46 ) )
 --           1
@@ -38,6 +74,36 @@ modFairPrice :: (RealFrac a) =>
 modFairPrice roundFn p minp maxp ca ma = 
   roundFn . (* p) . fromIntegral $ fairPrice minp maxp ca ma
 
+avg xs = sum xs `div` length xs
+
+deficitPricing :: Price -> Price -> Amount -> Amount -> Amount -> Price
+deficitPricing minp maxp acur amax atosell =
+  avg [ sellPrice minp maxp       acur       amax  
+      , sellPrice minp maxp (acur - atosell) amax ]
+
+standardPricingSell :: Price -> Price -> Amount -> Amount -> Price
+standardPricingSell = sellPrice
+
+mixedSell :: Price -> Price -> Amount -> Amount -> Amount -> Price
+mixedSell minp maxp acur amax atosell =
+  if (fromIntegral acur) / (fromIntegral amax) < const_deficit
+    then deficitPricing minp maxp acur amax atosell
+    else standardPricingSell minp maxp acur amax
+
+abundancyPricing :: Price -> Price -> Amount -> Amount -> Amount -> Price
+abundancyPricing minp maxp acur amax atobuy =
+  avg [ buyPrice minp maxp       acur       amax  
+      , buyPrice minp maxp (acur + atobuy) amax ]
+
+standardPricingBuy :: Price -> Price -> Amount -> Amount -> Price
+standardPricingBuy = buyPrice
+
+mixedBuy :: Price -> Price -> Amount -> Amount -> Amount -> Price
+mixedBuy minp maxp acur amax atobuy =
+  if (fromIntegral acur) / (fromIntegral amax) > const_abundancy
+    then abundancyPricing minp maxp acur amax atobuy
+    else standardPricingBuy minp maxp acur amax
+
 buyPrice  = modFairPrice floor   const_pricing_buyToFair
 sellPrice = modFairPrice ceiling const_pricing_sellToFair
 
@@ -54,16 +120,14 @@ instance StockOps Stock where
                 cm = si_maxStock st
                 minp = si_minPrice st
                 maxp = si_maxPrice st
-            in  buyPrice minp maxp ca cm
+            in  (pricing_consumerBuy globalPricing) minp maxp ca cm amount
 
           StockItemBoth -> 
             let ca = checkWarePure ware stock
                 cm = si_maxStock st
                 minp = si_minPrice st
                 maxp = si_maxPrice st
-                avg ns = (sum ns) `div` (length ns)
-            in avg [ buyPrice minp maxp ca            cm 
-                   , buyPrice minp maxp (ca + amount) cm]
+            in  (pricing_bothBuy globalPricing) minp maxp ca cm amount
 
           StockItemSelling -> error $ "StockOps: stockBuyPrice: entity only sells " ++ show ware
 
@@ -77,16 +141,14 @@ instance StockOps Stock where
                 cm = si_maxStock st
                 minp = si_minPrice st
                 maxp = si_maxPrice st
-            in  sellPrice minp maxp ca cm
+            in  (pricing_producerSell globalPricing) minp maxp ca cm amount
 
           StockItemBoth -> 
             let ca = checkWarePure ware stock
                 cm = si_maxStock st
                 minp = si_minPrice st
                 maxp = si_maxPrice st
-                avg ns = (sum ns) `div` (length ns)
-            in avg [ sellPrice minp maxp ca           cm 
-                   , sellPrice minp maxp (ca - amount) cm]
+            in (pricing_bothSell globalPricing) minp maxp ca cm amount
 
           StockItemBuying -> error $ "StockOps: stockSellPrice: entity only buys " ++ show ware
 
