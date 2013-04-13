@@ -7,6 +7,7 @@ import Control.Monad (join)
 import Data.Function (on)
 import Data.List (foldl', intersperse, sort, sortBy)
 import qualified Data.Map as M
+import Data.Maybe (fromJust)
 
 import GlobalConst (const_deficit, const_abundancy
                    , const_pricing_buyToFair, const_pricing_sellToFair)
@@ -115,20 +116,8 @@ instance StockOps Stock where
       Nothing -> error $ "StockOps: stockBuyPrice: entity doesn't trade in " ++ show ware
       Just st ->
         case si_type st of
-          StockItemBuying ->
-            let ca = checkWarePure ware stock
-                cm = si_maxStock st
-                minp = si_minPrice st
-                maxp = si_maxPrice st
-            in  (pricing_consumerBuy globalPricing) minp maxp ca cm amount
-
-          StockItemBoth -> 
-            let ca = checkWarePure ware stock
-                cm = si_maxStock st
-                minp = si_minPrice st
-                maxp = si_maxPrice st
-            in  (pricing_bothBuy globalPricing) minp maxp ca cm amount
-
+          StockItemBoth -> callFnOnStock stock (pricing_bothBuy globalPricing) ware amount
+          StockItemBuying -> callFnOnStock stock (pricing_consumerBuy globalPricing) ware amount
           StockItemSelling -> error $ "StockOps: stockBuyPrice: entity only sells " ++ show ware
 
   stockSellPrice stock ware amount =
@@ -136,21 +125,18 @@ instance StockOps Stock where
       Nothing -> error $ "StockOps: stockSellPrice: entity doesn't trade in " ++ show ware
       Just st ->
         case si_type st of
-          StockItemSelling ->
-            let ca = checkWarePure ware stock
-                cm = si_maxStock st
-                minp = si_minPrice st
-                maxp = si_maxPrice st
-            in  (pricing_producerSell globalPricing) minp maxp ca cm amount
-
-          StockItemBoth -> 
-            let ca = checkWarePure ware stock
-                cm = si_maxStock st
-                minp = si_minPrice st
-                maxp = si_maxPrice st
-            in (pricing_bothSell globalPricing) minp maxp ca cm amount
-
+          StockItemBoth -> callFnOnStock stock (pricing_bothSell globalPricing) ware amount
           StockItemBuying -> error $ "StockOps: stockSellPrice: entity only buys " ++ show ware
+          StockItemSelling -> callFnOnStock stock (pricing_producerSell globalPricing) ware amount
+
+callFnOnStock :: Stock -> PricingFn -> Ware -> Amount -> Price
+callFnOnStock stock fn w a =
+  let si = fromJust (M.lookup w stock) -- fromJust is safe because of the above check
+      ca = checkWarePure w stock
+      cm = si_maxStock si
+      minp = si_minPrice si
+      maxp = si_maxPrice si
+  in  fn minp maxp ca cm a
 
 data StockItem = StockItem
   { si_amount :: Amount
