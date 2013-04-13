@@ -9,9 +9,6 @@ import qualified Text.ParserCombinators.Parsec as P (parse)
 class Recognize a where
   recognize :: String -> Maybe a
 
-class Parsable a where
-  parse   :: [Parser a] -> String -> Maybe a
-
 exhaustiveParse :: [Parser a] -> String -> Maybe a
 exhaustiveParse ps str =
   let parseResults = map (\p -> P.parse p "" str) ps
