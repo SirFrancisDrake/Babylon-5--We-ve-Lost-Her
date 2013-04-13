@@ -5,6 +5,7 @@ module Interface
 ( TradeAction(..)
 , allTradeActions
 , interface
+, runInterface
 ) 
 where
 
@@ -37,6 +38,11 @@ import Space
 import TradeIO
 import Wares
 import Wrappers
+
+runInterface :: World -> IO ()
+runInterface w = 
+  setCursorPosition 0 0 >> clearFromCursorToScreenEnd >> setCursorPosition 5 0 
+  >> runReaderT interface w
 
 data Menu_ActionAfter =
   MAA_Depends

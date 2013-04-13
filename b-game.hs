@@ -11,7 +11,6 @@ import System.Posix (sleep)
 import DataTypes
 import StartingInput
 import Interface
-import InterfaceShow
 import World
 
 -- main = do

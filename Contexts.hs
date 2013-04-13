@@ -12,6 +12,19 @@ import DataTypes
 import Jumpgates
 import Ships
 
+-- To link together `ReaderT World IO (TVar sth)' and `ReaderT World STM (TVar sth)'
+-- one can pass an accessor (readTVarIO and readTVar respectively) into a reader:
+-- getPlayerWith accessor = 
+--   ask >>= lift . accessor . world_owners >>= return . (\a -> a ! 0)
+--
+-- This is the type signature, borrowing from ghci:
+-- getPlayerWith
+--  :: ( EnvType (t, m) ~ World
+--     , MonadReader (t, m)
+--     , MonadTrans t
+--     , Monad m) =>
+--     (TVar (IntMap (TVar Ship)) -> m (IntMap b)) -> t m b
+
 getPlayerShipSTM :: ReaderT World STM (TVar Ship)
 getPlayerShipSTM = ask >>= lift . readTVar . world_player >>= return . player_selectedShip
 

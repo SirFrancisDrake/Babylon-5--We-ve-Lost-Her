@@ -56,8 +56,6 @@ import Wrappers
 --            inside the game cycle with just >>
 --            note that all the really cool stuff happens here
 --
--- [PRINT] - debug function. But it prints the whole world! Ain't that somethin'
---
 -- [PROCESS] - functions that process one particular `global` IntMap
 --             like, update station tax revenues, burn ships fuel and so on
 --             several auxiliary fns included
@@ -123,8 +121,10 @@ modifyInGlobalTVar predicate modifier tas =
     in modifyGlobalTVar mod tas
 
 
--- SECTION BREAK
--- [READFN] -- see section description in the contents above
+--
+--- SECTION BREAK
+--- [READFN] -- see section description in the contents above
+--
 
 cycleEverything :: ReaderT World IO ()
 cycleEverything = do
@@ -149,16 +149,10 @@ cycleEverything = do
     --liftIO $ putStrLn "Updating time."
     liftIO $ atomically $ modifyT (1+) time
 
--- SECTION BREAK
--- [PRINT] -- see section description in the contents above
-
-printClass :: (Show a) => TVar (IntMap (TVar a)) -> IO ()
-printClass tmap = readTVarIO tmap >>=
-    (mapM readTVarIO) . (P.map snd) . toList >>= mapM_ print 
-
-
--- SECTION BREAK
--- [PROCESS] -- see section description in the contents above
+--
+--- SECTION BREAK
+--- [PROCESS] -- see section description in the contents above
+--
 
 -- minimal declaration: processSTM
 class Processable a where
@@ -183,8 +177,11 @@ instance Processable Ship where
       sh <- lift $ readTVar tsh
       let nm = ship_navModule sh
       lift $ writeTVar tsh sh{ ship_navModule = tickMove nm }
+      lift (checkT runByAI tsh) >>= \b -> if b                
+        then processAI tsh
+        else return ()
 
--- Appendix-like remain. I let it stay for clearness its name provides just once
+
 dockMissing = processDocking
 
 processDocking :: ReaderT World IO ()
@@ -257,22 +254,4 @@ processNavProgram ctxt tsh = do
  
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse = setShipOnCourse
-
-runInterface :: World -> IO ()
-runInterface w = 
-  setCursorPosition 0 0 >> clearFromCursorToScreenEnd >> setCursorPosition 5 0 
-  >> runReaderT interface w
-
--- To link together `ReaderT World IO (TVar sth)' and `ReaderT World STM (TVar sth)'
--- one can pass an accessor (readTVarIO and readTVar respectively) into a reader:
--- getPlayerWith accessor = 
---   ask >>= lift . accessor . world_owners >>= return . (\a -> a ! 0)
---
--- This is the type signature, borrowing from ghci:
--- getPlayerWith
---  :: ( EnvType (t, m) ~ World
---     , MonadReader (t, m)
---     , MonadTrans t
---     , Monad m) =>
---     (TVar (IntMap (TVar Ship)) -> m (IntMap b)) -> t m b
 

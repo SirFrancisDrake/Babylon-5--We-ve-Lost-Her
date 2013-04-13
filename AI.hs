@@ -38,7 +38,7 @@ ai_current _ = error "Can't AI current this"
 
 ai_next :: ShipAI -> SCommand
 ai_next (ShipAI z) = head $ zip_others z
-ai_next _ = error "Can't AI current this"
+ai_next _ = error "Can't AI next this"
 
 ai_rotn :: Int -> ShipAI -> ShipAI
 ai_rotn 0 s = s
