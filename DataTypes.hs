@@ -31,6 +31,9 @@ data ShipAI = ShipAI (Z.Zipper SCommand)
             | SAINone
     deriving (Eq)
 
+instance Show ShipAI where
+  show _ = "someAI"
+
 data SCommand = SGo (TVar Station) | SBuy Ware Amount | SSell Ware Amount
     deriving (Eq)
 

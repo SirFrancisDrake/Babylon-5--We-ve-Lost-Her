@@ -101,7 +101,7 @@ ship_freeSpace s = fromIntegral( shipStats_cargoHold $ ship_stats s ) - weight (
 tick = tickGame -- WARNING: MAGIC CONSTANT
                 -- tickGame imported from GlobalConst
 
-tickMove :: NavModule -> NavModule -- ignores SpaceType FIXME
+tickMove :: NavModule -> NavModule
 tickMove (NavModule (SNPSpace (Space pos st)) (MovingToSpace vel targ) p) =
     let diff = vel * (fromInteger tickGame)
         closeEnough = length( targ-pos ) <= length diff

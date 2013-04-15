@@ -39,6 +39,7 @@ import Space
 import Stock
 import TradeIO
 import Wares
+import World.Dump
 import WorldGenerator
 import Wrappers
 
@@ -68,7 +69,9 @@ makeNewWorld :: Owner -> Ship -> IO World
 makeNewWorld owner ship = do
     w <- atomically generateWorld
     pown <- atomically $ addInstance (world_owners w) owner
-    psh  <- atomically $ addInstance (world_ships w) ship
+    psh  <- atomically $ addInstance (world_ships w) ship{ ship_owner = pown }
+    readTVarIO pown >>= \own -> 
+      atomically $ writeTVar pown own{ owner_shipsOwned = [psh] }
     plyr <- newTVarIO (Player pown psh [])
     plock <- newMVar ()
     pause plock
@@ -255,3 +258,8 @@ processNavProgram ctxt tsh = do
 setOnCourse :: (TVar Ship) -> (TVar Station) -> STM ()
 setOnCourse = setShipOnCourse
 
+
+--
+--- SECTION BREAK
+--- [CREATING THINGS]
+--
