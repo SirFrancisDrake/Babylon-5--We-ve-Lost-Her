@@ -26,13 +26,16 @@ import Auxiliary.Parsec
 import Auxiliary.Transactions
 import Auxiliary.StringFunctions
 import Contexts
+import Data.Encounters
 import DataTypes
+import Encounters
 import GlobalConst
 import Interface.Actions
 import Interface.Parsers
 import Jumpgates
 import NavigationIO
 import Parsable
+import Quests.Q1
 import Ships
 import Space
 import TradeIO

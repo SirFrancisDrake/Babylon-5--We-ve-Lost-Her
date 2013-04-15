@@ -1,7 +1,7 @@
-module Sample where
+module Quests.Sample where
 
 import Auxiliary.Zipper
-import Q1
+import Quests.Q1
 
 quest_sample =
     Quest { q_title = "Sample quest"

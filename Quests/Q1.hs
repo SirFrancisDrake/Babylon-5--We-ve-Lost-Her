@@ -1,4 +1,4 @@
-module Q1 where
+module Quests.Q1 where
 
 import Control.Applicative ((<$>))
 import Data.List (intersperse)
