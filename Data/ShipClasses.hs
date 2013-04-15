@@ -3,7 +3,6 @@ module Data.ShipClasses where
 import AI
 import DataTypes
 import Navigation
-import ShipsAndStations
 import ShipStats
 import Vector
 import Wares

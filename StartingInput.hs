@@ -16,7 +16,6 @@ import AI
 import Data.ShipClasses
 import DataTypes
 import PersonalData
-import ShipsAndStations
 import Owner
 import VariousFns
 

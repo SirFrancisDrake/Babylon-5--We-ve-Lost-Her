@@ -5,7 +5,6 @@ import Data.IntMap
 import Currency
 import DataTypes
 import Navigation
-import ShipsAndStations
 import Stock
 import qualified Vector as V
 import Wares

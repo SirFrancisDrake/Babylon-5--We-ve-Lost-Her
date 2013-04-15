@@ -10,7 +10,7 @@ module Interface
 where
 
 import Control.Applicative hiding ((<|>))
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, MVar(..))
 import Control.Concurrent.STM
 import Control.Monad.Reader
 import qualified Data.Map as M
@@ -19,6 +19,7 @@ import Prelude hiding (filter, map)
 import qualified Prelude as P (filter, map)
 import System.Console.ANSI
 import System.Posix (sleep)
+import System.Random
 import Text.ParserCombinators.Parsec (Parser(..), parse)
 
 import Auxiliary.Concurrent
@@ -194,19 +195,33 @@ navTravel =
         slock <- lift $ newTVarIO False
         plock <- ask >>= return . nc_pauseLock
         lift $ unpause plock
-        lift $ forkIO $ navTravelRedraw slock wtime nc
+        lift $ forkIO $ navTravelRedraw plock slock wtime nc
         lift $ getChar >> cursorBackward 1
         lift $ atomically $ writeTVar slock True
         lift $ pause plock
         return MR_Top
 
-navTravelRedraw :: TVar Bool -> TVar Int -> NavContext -> IO ()
-navTravelRedraw slock wtime nc = do
+runEncounters :: NavContext -> MVar () -> IO ()
+runEncounters nc plock = do
+  let encs = nc_encounters nc
+  let fn i = do
+        g <- newStdGen
+        let deci = i * (10^(-(floor $ logBase 10 i)))
+        let chance = fst $ randomR (0, deci) g
+        return $ chance >= i
+  fencs <- filterM (\e -> fn (encounter_chance e)) encs
+  if not . null $ fencs
+    then runQ (encounter_quest (head fencs)) []
+    else return ()
+
+navTravelRedraw :: MVar () -> TVar Bool -> TVar Int -> NavContext -> IO ()
+navTravelRedraw plock slock wtime nc = do
   setCursorPosition 2 0 >> clearFromCursorToScreenEnd >> setCursorPosition 3 0
   let tsh = nc_playerShip nc
   runReaderT navDisplay nc
   readTVarIO wtime >>= \t -> putStrLn $ "Ticks AD: " ++ show t
   sleep (fromIntegral tickReal)
+  runEncounters nc plock
   programEmpty <- atomically $ checkT navProgramEmpty tsh
   shipIdle <- atomically $ checkT isIdle tsh
   if programEmpty && shipIdle
@@ -215,7 +230,7 @@ navTravelRedraw slock wtime nc = do
     else return ()
   readTVarIO slock >>= \stop ->
     if stop then return ()
-            else navTravelRedraw slock wtime nc
+            else navTravelRedraw plock slock wtime nc
 
 stationNames :: [TVar Station] -> STM [String]
 stationNames tsts = do

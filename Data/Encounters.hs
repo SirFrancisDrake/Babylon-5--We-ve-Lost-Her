@@ -14,16 +14,17 @@ encounters =
 phone_booth :: Encounter
 phone_booth = Encounter
   { encounter_check = return True
-  , encounter_chance = 0.01
+  , encounter_chance = 0.9
   , encounter_quest = q_phone_booth
   }
 
 q_phone_booth =
   Quest 
     { q_title = "Phone booth"
-    , q_screens = Zipper scr1 [ scr2, scr3, scr4]
+    , q_screens = Zipper scr1 [ scr2, scr3, scr4, scr0]
     }
   where
+  scr0 = Screen 0 undefined undefined
   scr1 =
     Screen 
       { s_id = 1
