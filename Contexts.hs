@@ -12,6 +12,7 @@ import Data.Encounters
 import DataTypes
 import ErrorMessages
 import Encounters
+import Interface.Base
 import Jumpgates
 import Ships
 
@@ -48,6 +49,7 @@ data NavContext = NavContext
   , nc_pauseLock   :: MVar ()
   , nc_worldTime   :: TVar Int
   , nc_encounters  :: [Encounter]
+  , nc_travelContinuation :: TVar (ReaderT NavContext IO ())
   }
 
 genNavContext :: TVar Ship -> ReaderT World STM NavContext
@@ -58,13 +60,15 @@ genNavContext tsh = do
   let jgs   = world_jumpgates w
   let plock = world_pauseLock w
   let wtime = world_time w
-  return (NavContext tsh tsts docked jgs plock wtime err_noEncounters)
+  return (NavContext tsh tsts docked jgs plock wtime err_nc_noEncounters err_nc_noCont)
 
 genNavContextR :: ReaderT World STM NavContext
 genNavContextR = do
   nc <- getPlayerShipSTM >>= genNavContext
   fecs <- filterM (\e -> encounter_check e) encounters
-  return nc{ nc_encounters = fecs }
+  tcont <- lift $ newTVar (err_nc_noCont)
+  return nc{ nc_encounters = fecs 
+           , nc_travelContinuation = tcont }
 
 type TradeContext = (TVar Owner, TVar Ship, TVar Station)
 

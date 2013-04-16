@@ -1,7 +1,8 @@
 module ErrorMessages where
 
 -- Contexts.hs
-err_noEncounters = error "Encounters undefined."
+err_nc_noCont = error "Can't find a continuation for Interface.navTravel"
+err_nc_noEncounters = error "Encounters undefined."
 
 -- Navigation.hs
 err_distanceNormalHyper = error "Can't measure distance between normalspace and hyperspace."

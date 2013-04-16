@@ -32,6 +32,7 @@ import DataTypes
 import Encounters
 import GlobalConst
 import Interface.Actions
+import Interface.Base
 import Interface.Parsers
 import Jumpgates
 import NavigationIO
@@ -47,20 +48,6 @@ runInterface :: World -> IO ()
 runInterface w = 
   setCursorPosition 0 0 >> clearFromCursorToScreenEnd >> setCursorPosition 5 0 
   >> runReaderT interface w
-
-data Menu_ActionAfter =
-  MAA_Depends
-  | MAA_Finish
-  | MAA_Return
-  deriving ()
-
-data Menu_Result =
-  MR_Pop
-  | MR_Stay
-  | MR_Top
-  deriving ()
-  
-type Menu a = M.Map String (ReaderT a STM Bool, ReaderT a IO Menu_Result, Menu_ActionAfter)
 
 processMenu :: Menu a -> ReaderT a IO ()
 processMenu menu = do
@@ -190,29 +177,49 @@ navTravel =
       else do
         nc <- ask
         let wtime = nc_worldTime nc
+        let tcont = nc_travelContinuation nc
         lift $ setCursorPosition 0 0 >> clearFromCursorToScreenEnd
         lift $ putStrLn "\nTravel engaged. Press any key to stop time. "
         slock <- lift $ newTVarIO False
         plock <- ask >>= return . nc_pauseLock
         lift $ unpause plock
+        liftIO $ atomically $ writeTVar tcont (navTravelUneventfulContinuation slock)
         lift $ forkIO $ navTravelRedraw plock slock wtime nc
         lift $ getChar >> cursorBackward 1
-        lift $ atomically $ writeTVar slock True
-        lift $ pause plock
+        lift (readTVarIO tcont) >>= id
         return MR_Top
 
-runEncounters :: NavContext -> MVar () -> IO ()
-runEncounters nc plock = do
+navTravelUneventfulContinuation :: TVar Bool -> ReaderT NavContext IO ()
+navTravelUneventfulContinuation _ = return ()
+
+navTravelEncounterContinuation :: Encounter -> ReaderT NavContext IO ()
+navTravelEncounterContinuation enc = 
+  let clrscr = lift (setCursorPosition 0 0 >> clearFromCursorToScreenEnd 
+                      >> setCursorPosition 2 0)
+  in  clrscr >> lift( runQ (encounter_quest enc) [] ) >> clrscr
+
+runEncounters :: TVar Bool -> NavContext -> IO Bool
+runEncounters slock nc =
   let encs = nc_encounters nc
-  let fn i = do
+      plock = nc_pauseLock nc
+      tcont = nc_travelContinuation nc
+      fn i = do
         g <- newStdGen
         let deci = i * (10^(-(floor $ logBase 10 i)))
         let chance = fst $ randomR (0, deci) g
         return $ chance >= i
-  fencs <- filterM (\e -> fn (encounter_chance e)) encs
-  if not . null $ fencs
-    then runQ (encounter_quest (head fencs)) []
-    else return ()
+  in  do
+    fencs <- filterM (\e -> fn (encounter_chance e)) encs
+    let continuation = navTravelEncounterContinuation (head fencs)
+    if not . null $ fencs
+      then do
+             atomically $ writeTVar tcont continuation
+             atomically $ writeTVar slock True 
+             pause plock
+             putStrLn "\n Your travel has been interrupted. Press any key to continue."
+             return True
+      else return False
+      
 
 navTravelRedraw :: MVar () -> TVar Bool -> TVar Int -> NavContext -> IO ()
 navTravelRedraw plock slock wtime nc = do
@@ -221,10 +228,10 @@ navTravelRedraw plock slock wtime nc = do
   runReaderT navDisplay nc
   readTVarIO wtime >>= \t -> putStrLn $ "Ticks AD: " ++ show t
   sleep (fromIntegral tickReal)
-  runEncounters nc plock
+  encounter <- runEncounters slock nc
   programEmpty <- atomically $ checkT navProgramEmpty tsh
   shipIdle <- atomically $ checkT isIdle tsh
-  if programEmpty && shipIdle
+  if programEmpty && shipIdle && (not encounter)
     then putStrLn "\nThe ship has stopped. Press any key to continue." 
          >> atomically (writeTVar slock True)
     else return ()
