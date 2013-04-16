@@ -38,7 +38,6 @@ import Jumpgates
 import NavigationIO
 import Parsable
 import Quests.Base
-import Quests.Definitions
 import Ships
 import Space
 import TradeIO
@@ -287,7 +286,7 @@ discoverJumpgate jg tp = readTVar tp >>= \p ->
 runTradeW :: ReaderT World IO (Menu_Result)
 runTradeW = do
   w <- ask
-  to  <- getPlayerIO
+  to  <- getPlayerOwnerIO
   tsh <- getPlayerShipIO 
   tst <- liftIO $ readTVarIO tsh >>= return . dockedSt
   lift $ runReaderT trade (genTradeContext to tsh tst)

@@ -1,6 +1,7 @@
 module Quests.Base where
 
 import Control.Applicative ((<$>))
+import Control.Concurrent.STM hiding (check)
 import qualified Control.Monad.Reader as R
 import qualified Control.Monad.State as S
 import Data.List (intersperse)
@@ -12,13 +13,21 @@ import Text.ParserCombinators.Parsec
 import Auxiliary.Zipper
 import Contexts
 import DataTypes
-import Quests.Definitions
 import Wrappers
 
 makeQuestContext :: Quest -> QuestVars -> QuestContext
 makeQuestContext q qvs =
   QuestContext (q_title q) qvs
 
+checkQVarW :: QScope -> QVarName -> (QVar -> Bool) -> R.ReaderT World STM Bool
+checkQVarW qsc qvn fn =
+  getPlayerSTM >>= R.lift . readTVar . player_questVars >>= return . (checkP qsc qvn fn)
+
+checkP :: QScope -> QVarName -> (QVar -> Bool) -> QuestVars -> Bool
+checkP qsc qvn fn qvars =
+  case M.lookup (qsc,qvn) qvars  of
+    Just i -> fn i
+    Nothing -> True
 
 check :: QScope -> QVarName -> (QVar -> Bool) -> R.Reader QuestContext Bool
 check qsc qvn fn =

@@ -7,7 +7,6 @@ import Auxiliary.Zipper
 import Data.Texts
 import DataTypes
 import Quests.Base
-import Quests.Definitions
 
 encounters =
   [ phone_booth
@@ -15,7 +14,7 @@ encounters =
 
 phone_booth :: Encounter
 phone_booth = Encounter
-  { encounter_check = return True
+  { encounter_check = checkQVarW (QSLocal $ q_title q_phone_booth) "unfinished" ((==) (QBool True))
   , encounter_chance = 0.05
   , encounter_quest = q_phone_booth
   }
@@ -97,7 +96,7 @@ q_phone_booth =
           { a_descrs = [t_q_phone_booth_s4_a1_d1]
           , a_successCheck = return True
           , a_screenT = 0
-          , a_modT = addLocal "finished" (QBool True)
+          , a_modT = addLocal "unfinished" (QBool False)
           , a_screenF = undefined
           , a_modF = undefined
           }

@@ -12,7 +12,6 @@ import DataTypes
 import ErrorMessages
 import Interface.Base
 import Jumpgates
-import Quests.Definitions
 import Ships
 
 -- To link together `ReaderT World IO (TVar sth)' and `ReaderT World STM (TVar sth)'
@@ -27,18 +26,23 @@ import Ships
 --     , MonadTrans t
 --     , Monad m) =>
 --     (TVar (IntMap (TVar Ship)) -> m (IntMap b)) -> t m b
+getPlayerSTM :: ReaderT World STM Player
+getPlayerSTM = ask >>= lift . readTVar . world_player 
 
 getPlayerShipSTM :: ReaderT World STM (TVar Ship)
 getPlayerShipSTM = ask >>= lift . readTVar . world_player >>= return . player_selectedShip
 
-getPlayerSTM :: ReaderT World STM (TVar Owner)
-getPlayerSTM = ask >>= lift . readTVar . world_player >>= return . player_owner
+getPlayerOwnerSTM :: ReaderT World STM (TVar Owner)
+getPlayerOwnerSTM = ask >>= lift . readTVar . world_player >>= return . player_owner
+
+getPlayerIO :: ReaderT World IO Player
+getPlayerIO = stmRtoIoR getPlayerSTM
 
 getPlayerShipIO :: ReaderT World IO (TVar Ship)
 getPlayerShipIO = stmRtoIoR getPlayerShipSTM
 
-getPlayerIO :: ReaderT World IO (TVar Owner)
-getPlayerIO = stmRtoIoR getPlayerSTM
+getPlayerOwnerIO :: ReaderT World IO (TVar Owner)
+getPlayerOwnerIO = stmRtoIoR getPlayerOwnerSTM
 
 data NavContext = NavContext
   { nc_playerShip  :: TVar Ship
