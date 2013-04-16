@@ -13,6 +13,7 @@ import Control.Applicative hiding ((<|>))
 import Control.Concurrent (forkIO, MVar(..))
 import Control.Concurrent.STM
 import Control.Monad.Reader
+import qualified Control.Monad.State as S
 import qualified Data.Map as M
 import Data.Maybe (isJust, fromJust)
 import Prelude hiding (filter, map)
@@ -29,7 +30,6 @@ import Auxiliary.StringFunctions
 import Contexts
 import Data.Encounters
 import DataTypes
-import Encounters
 import GlobalConst
 import Interface.Actions
 import Interface.Base
@@ -37,7 +37,8 @@ import Interface.Parsers
 import Jumpgates
 import NavigationIO
 import Parsable
-import Quests.Q1
+import Quests.Base
+import Quests.Definitions
 import Ships
 import Space
 import TradeIO
@@ -196,7 +197,13 @@ navTravelEncounterContinuation :: Encounter -> ReaderT NavContext IO ()
 navTravelEncounterContinuation enc = 
   let clrscr = lift (setCursorPosition 0 0 >> clearFromCursorToScreenEnd 
                       >> setCursorPosition 2 0)
-  in  clrscr >> lift( runQ (encounter_quest enc) [] ) >> clrscr
+  in  do nc <- ask
+         qvars <- lift $ readTVarIO $ nc_questVariables nc
+         let qcont = makeQuestContext (encounter_quest enc) qvars
+         clrscr
+         (_, nqcont) <- lift $ S.runStateT (runQ $ encounter_quest enc) qcont
+         lift $ atomically $ writeTVar (nc_questVariables nc) (qc_variables nqcont)
+         clrscr
 
 runEncounters :: TVar Bool -> NavContext -> IO Bool
 runEncounters slock nc =

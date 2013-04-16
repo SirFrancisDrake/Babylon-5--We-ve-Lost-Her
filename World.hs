@@ -71,7 +71,8 @@ makeNewWorld owner ship = do
     psh  <- atomically $ addInstance (world_ships w) ship{ ship_owner = pown }
     readTVarIO pown >>= \own -> 
       atomically $ writeTVar pown own{ owner_shipsOwned = [psh] }
-    plyr <- newTVarIO (Player pown psh [])
+    gvars <- newTVarIO $ M.fromList [] -- FIXME starting variables 0
+    plyr <- newTVarIO (Player pown psh [] gvars)
     plock <- newMVar ()
     pause plock
     return w{ world_player = plyr

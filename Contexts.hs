@@ -8,12 +8,11 @@ import Data.IntMap
 
 import Auxiliary.IntMap (vals)
 import Auxiliary.Transactions
-import Data.Encounters
 import DataTypes
 import ErrorMessages
-import Encounters
 import Interface.Base
 import Jumpgates
+import Quests.Definitions
 import Ships
 
 -- To link together `ReaderT World IO (TVar sth)' and `ReaderT World STM (TVar sth)'
@@ -50,6 +49,7 @@ data NavContext = NavContext
   , nc_worldTime   :: TVar Int
   , nc_encounters  :: [Encounter]
   , nc_travelContinuation :: TVar (ReaderT NavContext IO ())
+  , nc_questVariables :: TVar QuestVars
   }
 
 genNavContext :: TVar Ship -> ReaderT World STM NavContext
@@ -57,15 +57,18 @@ genNavContext tsh = do
   w <- ask
   tsts <- lift (readTVar (world_stations w)) >>= return . vals
   docked <- lift (readTVar tsh) >>= return . dockedM
+  qvars <- lift (readTVar $ world_player w) >>= return . player_questVars
   let jgs   = world_jumpgates w
   let plock = world_pauseLock w
   let wtime = world_time w
-  return (NavContext tsh tsts docked jgs plock wtime err_nc_noEncounters err_nc_noCont)
+  return (NavContext tsh tsts docked jgs 
+            plock wtime err_nc_noEncounters err_nc_noCont
+            qvars)
 
 genNavContextR :: ReaderT World STM NavContext
 genNavContextR = do
   nc <- getPlayerShipSTM >>= genNavContext
-  fecs <- filterM (\e -> encounter_check e) encounters
+  fecs <- ask >>= (filterM (\e -> encounter_check e)) . world_encounters
   tcont <- lift $ newTVar (err_nc_noCont)
   return nc{ nc_encounters = fecs 
            , nc_travelContinuation = tcont }

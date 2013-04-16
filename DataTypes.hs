@@ -5,14 +5,16 @@ module DataTypes where
 
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Monad.Reader
+import qualified Control.Monad.State as S
 import Data.Function (on)
 import Data.IntMap hiding (fromList, map)
+import qualified Data.Map as M
 
 import Auxiliary.IntMap
 import Auxiliary.Transactions (liftToTVar)
 import qualified Auxiliary.Zipper as Z
 import Currency
-import InterfaceShow
 import Jumpgates
 import Navigation
 import PersonalData
@@ -37,12 +39,71 @@ instance Show ShipAI where
 data SCommand = SGo (TVar Station) | SBuy Ware Amount | SSell Ware Amount
     deriving (Eq)
 
+-- Encounters
+data Encounter = Encounter
+  { encounter_check :: ReaderT World STM Bool
+  , encounter_chance :: Double
+  , encounter_quest :: Quest
+  }
+
+
+-- Quests
+data QVar =
+  QInt Int
+  | QBool Bool
+  | QString String
+  deriving (Eq, Show)
+
+instance Ord QVar where
+  (QInt a) <= (QInt b) = a <= b
+  (<=) _ _ = error "Eq: QVar: incomparable types"
+
+instance Num QVar where
+  fromInteger i = QInt (fromInteger i)
+  (+) _ _ = undefined
+  (*) _ _ = undefined
+  abs _ = undefined
+  signum _ = undefined
+
+data QScope =
+  QSGlobal
+  | QSLocal QuestName
+  | QScope String
+  deriving (Eq, Ord, Show)
+
+type QuestVars = M.Map (QScope, QVarName) QVar
+
+data Quest = Quest { q_title :: String
+                   , q_screens :: Z.Zipper Screen
+                   }
+
+data Screen = Screen { s_id :: Int
+                     , s_descr :: String
+                     , s_actions :: [Action]
+                     }
+
+data Action = Action
+    { a_descrs       :: [String]
+    , a_successCheck :: Reader QuestContext Bool
+    , a_screenT      :: Int
+    , a_modT         :: S.State QuestContext ()
+    , a_screenF      :: Int
+    , a_modF         :: S.State QuestContext ()
+    }
+
+data QuestContext = QuestContext
+  { qc_questName :: QuestName
+  , qc_variables :: QuestVars
+  }
+  deriving ()
+
 -- OWNERS.HS
 
 data Player = Player
   { player_owner          :: TVar Owner
   , player_selectedShip   :: TVar Ship
   , player_knownJumpgates :: [Jumpgate]
+  , player_questVars      :: TVar QuestVars
   }
   deriving ()
 
@@ -204,13 +265,6 @@ instance SpaceObject Station where
 instance Eq Station where
     (==) = on (==) station_name
 
-instance ContextualShow Station where
-    contextShow (ContextStationGuest _, _) st =
-        "You are on " ++ station_name st ++ ". " ++ station_description st
-    contextShow (ContextStationOwner _, _) st =
-        "You are on " ++ station_name st ++ ". " ++ station_description st
-    contextShow _ _ = undefined
-    
 instance Show (Station -> Station) where
     show _ = "some (Station -> Station)"
 
@@ -234,6 +288,7 @@ data World = World
     , world_ships     :: TVar (IntMap (TVar Ship)) 
     , world_owners    :: TVar (IntMap (TVar Owner)) 
     , world_jumpgates :: TVar (IntMap Jumpgate)
+    , world_encounters:: [Encounter]
     , world_player    :: TVar Player
     , world_time      :: TVar Int
     , world_pauseLock :: MVar ()

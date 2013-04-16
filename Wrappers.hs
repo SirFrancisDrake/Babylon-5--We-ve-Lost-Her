@@ -6,6 +6,10 @@ type Money = Int
 -- Owners.hs
 type OwnerID = Int
 
+-- Quests
+type QuestName = String
+type QVarName = String
+
 -- Ships.hs
 type ShipID = Int
 

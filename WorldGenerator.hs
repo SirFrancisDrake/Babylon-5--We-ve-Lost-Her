@@ -10,6 +10,7 @@ import Prelude hiding (map)
 import qualified Prelude as P (map)
 
 import Auxiliary.IntMap
+import Data.Encounters
 import Data.Everything
 import Data.Jumpgates
 import DataTypes
@@ -30,7 +31,7 @@ generateWorldFrom srs = do
     iown <- newTVar (makeIntMap towners)
     ijg  <- newTVar (makeIntMap jg_startingJumpgates)
     tt   <- newTVar 0
-    return (World itst itsh iown ijg undefined tt undefined)
+    return (World itst itsh iown ijg encounters undefined tt undefined)
 
 makeRace :: StoredRace -> STM ([TVar Owner], [TVar Ship], [TVar Station])
 makeRace (StoredRace o shs sts) = do
