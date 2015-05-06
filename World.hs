@@ -8,7 +8,7 @@ import Control.Monad (forM)
 import Control.Monad.Reader
 import qualified Data.Map as M
 import Data.Maybe (isJust, fromJust)
-import Data.IntMap hiding (filter, null, map)   -- to avoid confusion when
+import Data.IntMap hiding (filter, foldl', null, map)   -- to avoid confusion when
 import qualified Data.IntMap as I (filter, map) -- using filter and map,
 import Prelude hiding (filter, map)             -- I import them qualified,
 import qualified Prelude as P (filter, map)     -- 'cuz it cost me 20 minutes once

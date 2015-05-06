@@ -1,13 +1,26 @@
 
+{-# LANGUAGE PatternGuards #-}
+
 module Trace where
 
 import Control.Concurrent.STM
 import Data.List (intersperse)
 
+import Data.ProductionChains
 import DataTypes
 
+printAgent :: Agent -> IO ()
+printAgent a = do
+  putStrLn $ "\nCapacity: " ++ show (agent_capacity a)
+  printState $ agent_state a
+
+printState as
+  | AS_Idle <- as = putStr "Idle"
+  | AS_LookingForContract <- as = putStr "LookingForContract"
+  | AS_WorkingContract tc <- as = putStr "Working contract: " >> readTVarIO tc >>= printContract
+
 printProduction :: Production -> IO ()
-printProduction (Production tprov ins outs ticks tcs) = do
+printProduction (Production _ tprov ins outs ticks tcs) = do
     putStrLn $ "\n--> Inputs: "  ++ (concat $ intersperse " " $ map show ins)
     putStrLn $ "--> Outputs: " ++ (concat $ intersperse " " $ map show outs)
     ctrs <- mapM readTVarIO tcs

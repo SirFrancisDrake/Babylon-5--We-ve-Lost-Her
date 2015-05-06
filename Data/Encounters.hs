@@ -14,7 +14,7 @@ encounters =
 
 phone_booth :: Encounter
 phone_booth = Encounter
-  { encounter_check = checkQVarW (QSLocal $ q_title q_phone_booth) "unfinished" ((==) (QBool True))
+  { encounter_check = checkQVarW (QSLocal $ q_title q_phone_booth) "finished" ((/=) (QBool True))
   , encounter_chance = 0.05
   , encounter_quest = q_phone_booth
   }

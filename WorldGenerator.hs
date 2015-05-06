@@ -29,9 +29,10 @@ generateWorldFrom srs = do
     itst <- newTVar (makeIntMap tstations)
     itsh <- newTVar (makeIntMap tships)
     iown <- newTVar (makeIntMap towners)
+    itoo <- newTVar []
     ijg  <- newTVar (makeIntMap jg_startingJumpgates)
     tt   <- newTVar 0
-    return (World itst itsh iown ijg encounters undefined tt undefined)
+    return (World itst itsh iown itoo ijg encounters undefined tt undefined)
 
 makeRace :: StoredRace -> STM ([TVar Owner], [TVar Ship], [TVar Station])
 makeRace (StoredRace o shs sts) = do

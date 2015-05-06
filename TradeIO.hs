@@ -2,7 +2,9 @@
 module TradeIO where
 
 import Control.Concurrent.STM
+import Control.Monad (filterM)
 import Control.Monad.Reader
+import Data.List ( (\\) )
 
 import Contexts
 import Currency
@@ -60,3 +62,18 @@ sell sw sa = do
           removeMoney (stockBuyTotal st sw sa) tst
           addMoney (stockBuyTotal st sw sa) to
         else return ()
+
+moveWare :: (WareOps a, WareOps b) => Ware -> Amount -> TVar a -> TVar b -> STM ()
+moveWare w a objf objt = removeWare w a objf >> addWare w a objt
+
+loadAvailible :: (WareOps a, WareOps b) => 
+  SupplyPackage -> TVar a -> TVar b -> STM SupplyPackage
+loadAvailible sp objf objt = do
+  loadable <- filterM (\(w,a) -> enoughWare w a objf) sp
+  let nonLoadable = sp \\ loadable
+  mapM_ (\(w,a) -> moveWare w a objf objt) sp
+  return nonLoadable
+
+unloadAll :: (WareOps a, WareOps b) =>
+  SupplyPackage -> TVar a -> TVar b -> STM ()
+unloadAll sp objf objt = mapM_ (\(w,a) -> moveWare w a objf objt) sp

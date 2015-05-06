@@ -190,7 +190,9 @@ navTravel =
         return MR_Top
 
 navTravelUneventfulContinuation :: TVar Bool -> ReaderT NavContext IO ()
-navTravelUneventfulContinuation _ = return ()
+navTravelUneventfulContinuation slock = do
+  liftIO $ atomically $ writeTVar slock True
+  ask >>= lift . pause . nc_pauseLock
 
 navTravelEncounterContinuation :: Encounter -> ReaderT NavContext IO ()
 navTravelEncounterContinuation enc = 

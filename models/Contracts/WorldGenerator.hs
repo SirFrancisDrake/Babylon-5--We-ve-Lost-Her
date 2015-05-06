@@ -8,6 +8,7 @@ import Control.Concurrent.STM
 import Control.Monad (filterM, foldM, when)
 import Data.List (foldl')
 
+import Data.Owners
 import Data.Productions
 import Data.Provinces
 import Data.StoringTypes
@@ -15,24 +16,48 @@ import DataTypes
 
 makeWorld :: STM World
 makeWorld = do
-  agents <- makeAgents []
   provinces <- mapM makeProvince startingProvinces
-  productions <- mapM (flip makeProduction provinces) startingProductions
+  owners    <- mapM makeOwner startingOwners
+  productions <- mapM (\p -> makeProduction p provinces owners) startingProductions
   contracts <- setUpContracts productions
+  agents <- makeEnoughAgents contracts
   return (World provinces productions agents contracts)
 
 makeAgents :: [Agent] -> STM [TVar Agent]
 makeAgents = mapM newTVar
 
+makeEnoughAgents :: [TVar Contract] -> STM [TVar Agent]
+makeEnoughAgents tctrs =
+  let cr  = contract_route 
+      vol c = volume (contractRoute_ware $ cr c) * (contractRoute_amount $ cr c)
+      mk c = 
+        Agent
+          (vol c)
+          (0,0)
+          1
+          []
+          undefined
+      fn tctr = do
+        ctr <- readTVar tctr
+        tag <- newTVar (mk ctr){ agent_state = AS_WorkingContract tctr }
+        writeTVar tctr ctr{ contract_status = CS_Worked tag }
+        return tag
+  in  mapM fn tctrs
+
 makeProvince :: Province -> STM (TVar Province)
 makeProvince = newTVar
 
-makeProduction :: (String, Production) -> [TVar Province] -> STM (TVar Production)
-makeProduction (provn, prod) tprovs = do
+makeOwner = newTVar
+
+makeProduction :: (String, String, Production) -> [TVar Province] -> [TVar Owner] -> STM (TVar Production)
+makeProduction (provn, ownn, prod) tprovs towns = do
   tprov <- head <$> filterM (\tp -> readTVar tp >>= return . (== provn) . province_name) tprovs
+  town  <- head <$> filterM (\to -> readTVar to >>= return . (== ownn)  . owner_name)    towns
   prov <- readTVar tprov
-  tprod <- newTVar prod{ production_province = tprov }
+  own  <- readTVar town
+  tprod <- newTVar prod{ production_province = tprov, production_owner = town}
   writeTVar tprov prov{ province_productions = tprod:(province_productions prov) }
+  writeTVar town   own{ owner_productions    = tprod:(owner_productions own) }
   return tprod
 
 setUpContracts :: [TVar Production] -> STM [TVar Contract]

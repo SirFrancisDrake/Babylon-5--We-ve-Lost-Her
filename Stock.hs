@@ -1,5 +1,5 @@
 
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
 module Stock where
 
@@ -21,14 +21,18 @@ data PricingModel = PricingModel
   , pricing_producerSell :: PricingFn
   }
 
+            -- minprice maxprice  current max_possible amount_customer_wants
 type PricingFn = Price -> Price -> Amount -> Amount -> Amount -> Price
+
+-- calls a pricing function ignoring the amount_customer_wants part
+simplified fn a b c d _ = fn a b c d
 
 abundancyDeficitPricing :: PricingModel
 abundancyDeficitPricing = PricingModel
   { pricing_bothBuy      = mixedBuy
-  , pricing_consumerBuy  = \a b c d _ -> buyPrice  a b c d
+  , pricing_consumerBuy  = simplified buyPrice
   , pricing_bothSell     = mixedSell
-  , pricing_producerSell = \a b c d _ -> sellPrice a b c d
+  , pricing_producerSell = simplified sellPrice
   }
 
 portRoyalePricing :: PricingModel
@@ -41,10 +45,10 @@ portRoyalePricing = PricingModel
 
 xTensionPricing :: PricingModel
 xTensionPricing = PricingModel
-  { pricing_bothBuy      = \a b c d _  -> buyPrice  a b c d
-  , pricing_consumerBuy  = \a b c d _  -> buyPrice  a b c d
-  , pricing_bothSell     = \a b c d _  -> sellPrice a b c d
-  , pricing_producerSell = \a b c d _  -> sellPrice a b c d
+  { pricing_bothBuy      = simplified buyPrice 
+  , pricing_consumerBuy  = simplified buyPrice 
+  , pricing_bothSell     = simplified sellPrice
+  , pricing_producerSell = simplified sellPrice
   }
 
 globalPricing = abundancyDeficitPricing

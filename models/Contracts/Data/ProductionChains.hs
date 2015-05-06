@@ -21,11 +21,11 @@ chains = map parseChain chs
 makeProductions :: [Production]
 makeProductions = 
   let chs = concat $ map 
-                      (map (\(is, os) -> Production undefined is os 1 [])) 
+                      (map (\(is, os) -> Production undefined undefined is os 1 [])) 
                       chains
       allIns  = concat $ foldl (\acc p -> (production_inputs  p):acc) [] chs
       allOuts = concat $ foldl (\acc p -> (production_outputs p):acc) [] chs
-      leaves  = map (\p -> Production undefined [] [p] 1 []) (allIns \\ allOuts)
+      leaves  = map (\p -> Production undefined undefined [] [p] 1 []) (allIns \\ allOuts)
   in chs ++ leaves
                       
 

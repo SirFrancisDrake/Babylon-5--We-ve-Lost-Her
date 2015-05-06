@@ -24,6 +24,7 @@ shipsDataDefShip = Ship "empty name"
                         defaultAI 
                         defaultCargo 
                         (error "ShipsData.hs: undefined")
+                        (error "ShipsData.hs: undefined")
 
 shStandardRhino :: Ship
 shStandardRhino = let thisShipStats = shipStats Rhino

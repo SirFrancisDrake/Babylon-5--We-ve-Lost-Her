@@ -21,10 +21,22 @@ data Ware =
   | Tin
   | Bronze
   | Sword
-  deriving (Eq, Show)
+  | Axe
+  | Wood
+  deriving (Bounded, Enum, Eq, Show)
+
+volume :: Ware -> Int
+volume = const 4
+
+data Owner = Owner
+  { owner_name        :: String
+  , owner_productions :: [TVar Production]
+  , owner_balance     :: Int
+  } deriving ()
 
 data Production = Production
-  { production_province  :: TVar Province
+  { production_owner     :: TVar Owner
+  , production_province  :: TVar Province
   , production_inputs    :: [(Ware, Amount)]
   , production_outputs   :: [(Ware, Amount)]
   , production_baseTicks :: Int

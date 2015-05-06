@@ -28,4 +28,5 @@ valen'tha =
     defaultAI
     defaultCargo
     undefined
+    undefined -- FIXME
 

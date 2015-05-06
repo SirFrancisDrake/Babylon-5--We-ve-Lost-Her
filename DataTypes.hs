@@ -36,8 +36,15 @@ data ShipAI = ShipAI (Z.Zipper SCommand)
 instance Show ShipAI where
   show _ = "someAI"
 
-data SCommand = SGo (TVar Station) | SBuy Ware Amount | SSell Ware Amount
-    deriving (Eq)
+type SupplyPackage = [( Ware, Amount )]
+
+data SCommand = 
+  SGo (TVar Station) 
+  | SBuy Ware Amount 
+  | SSell Ware Amount
+  | SLoad SupplyPackage
+  | SUnload SupplyPackage
+  deriving (Eq)
 
 -- Encounters
 data Encounter = Encounter
@@ -103,7 +110,7 @@ data Player = Player
   { player_owner          :: TVar Owner
   , player_selectedShip   :: TVar Ship
   , player_knownJumpgates :: [Jumpgate]
-  , player_questVars      :: TVar QuestVars
+  , player_questVars      :: TVar QuestVars -- no need to keep it TVared FIXME
   }
   deriving ()
 
@@ -114,6 +121,81 @@ data Owner = Owner
   , owner_personalInfo :: PersonalInfo
   , owner_money :: Money }
   deriving ()
+
+
+--
+--- SECTION BREAK
+-----------------------
+---  CONTRACTS
+--
+
+data Pilot = PilotPlayer | PilotToon Toon
+
+data Toon = Toon
+  { toon_name :: String
+  , toon_cash :: Money
+  , toon_job  :: ToonJob
+  }
+  deriving ()
+
+data ToonJob =
+  ToonUnemployed
+  | ToonEmployed
+    { tj_contract :: TVar Contract
+    }
+  deriving ()
+
+data Vacancy = Vacancy
+  { vacancy_issuer :: TVar Owner
+  , vacancy_payment :: VacancyPayment
+  --, vacancy_status :: VacancyStatus
+  }
+  deriving ()
+
+data VacancyPayment = VacPay_Fixed Int
+
+data Contract = Contract
+  { contract_issuer :: TVar Owner
+  , contract_route  :: ContractRoute
+  , contract_status :: ContractStatus
+  , contract_length :: ContractLength
+  } deriving ()
+
+data ContractStatus =
+    CS_Outstanding
+  | CS_IsWorked { cs_iw_agent :: TVar Agent }
+  deriving ()
+
+data ContractLength =
+    CL_Forever
+  deriving ()
+
+-- data ContractDetails = ContractCourier
+--   { cc_pilot :: TVar Toon
+--   , cc_route :: [ContractRouteNode] -- FIXME
+--   , cc_payment :: ContractPayment
+--   , cc_expires :: Int -- FIXME
+--   }
+--   deriving ()
+-- 
+-- data Contract = Contract
+--   { contr_issuer :: TVar Owner
+--   , contr_status :: ContractStatus
+--   , contr_details :: ContractDetails
+--   }
+-- 
+-- data ContractRouteNode =
+--   ContractRouteNode
+--   { crn_station :: TVar Station
+--   , crn_purchaseList :: [ (Ware, Amount) ]
+--   , crn_sellList :: [ (Ware, Amount) ]
+--   }
+--   deriving ()
+-- 
+-- data ContractPayment =
+--   PaymentPerRun Money
+--   | PaymentPerTicks Int Money
+--   deriving ()
 
 data PersonalInfo = 
   Corporation { pi_corp_awesomeness :: Int }
@@ -207,6 +289,7 @@ data Ship = Ship
              , ship_AI :: ShipAI
              , ship_cargo :: Cargo
              , ship_owner :: (TVar Owner)
+             , ship_pilot :: Pilot
              }
         deriving ()
 
@@ -287,6 +370,7 @@ data World = World
     { world_stations  :: TVar (IntMap (TVar Station)) 
     , world_ships     :: TVar (IntMap (TVar Ship)) 
     , world_owners    :: TVar (IntMap (TVar Owner)) 
+    , world_toons     :: TVar [TVar Toon] -- let's migrate from IntMaps to Lists FIXME
     , world_jumpgates :: TVar (IntMap Jumpgate)
     , world_encounters:: [Encounter]
     , world_player    :: TVar Player

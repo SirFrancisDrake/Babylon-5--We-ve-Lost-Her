@@ -11,11 +11,21 @@ import Auxiliary.StringFunctions
 import Auxiliary.Transactions
 import Wrappers
 
-data Ware = Books | CyberModules | Energy | Food | Fuel | Silicium | Supplies
-    deriving (Enum, Eq, Show, Ord)
+data Ware = 
+    Battaries 
+  | Books 
+  | Cadmium 
+  | CyberModules 
+  | Energy 
+  | Food 
+  | Fuel 
+  | Nickel
+  | Silicium 
+  | Supplies
+    deriving (Bounded, Enum, Eq, Show, Ord)
 
-allWares  = [Books .. Supplies]
-wareNames = map show [Books .. Supplies]
+allWares  = [minBound .. maxBound]
+wareNames = map show allWares
 
 standardPrice :: Ware -> Money
 standardPrice Books = 10
@@ -26,25 +36,20 @@ standardPrice Fuel = 14
 standardPrice Silicium = 90
 standardPrice Supplies = 20
 
+wareByName :: String -> Maybe Ware
+wareByName str =
+  let wps = filter (\(wn,w) -> wn == str) 
+                   (map (\w -> (map toLower $ show w, w)) allWares)
+  in  if null wps
+        then Nothing
+        else return $ snd $ head wps
+
 instance Recognize Ware where
-    recognize w = let patterns = [ "books"
-                                 , "energy"
-                                 , "fuel"
-                                 , "food"
-                                 , "supplies"
-                                 , "cybermodules"
-                                 , "silicium"
-                                 ]
-                  in case exhaustive (map toLower w) patterns of
-                        Just "books" -> Just Books
-                        Just "energy" -> Just Energy
-                        Just "fuel" -> Just Fuel
-                        Just "food" -> Just Food
-                        Just "supplies" -> Just Supplies
-                        Just "cybermodules" -> Just CyberModules
-                        Just "silicium" -> Just Silicium
-                        otherwise -> Nothing
-                    
+    recognize w = let patterns = map (map toLower) wareNames
+                      ex = exhaustive (map toLower w) patterns 
+                  in  case ex of
+                        Just str -> wareByName str
+                        Nothing  -> Nothing
 
 data Cargo = Cargo [(Ware, Amount)]
     deriving ()
@@ -69,15 +74,7 @@ instance Show Cargo where -- copypasted from Stock.hs `instance Show Stock`, gen
                       in "\t" ++ header ++ break ++ "\t" ++ 
                            (join $ intersperse "\n\t" (map showP (tail nps)))
 
-defaultCargo = Cargo
-               [ (Fuel,         0)
-               , (Books,        0)
-               , (Energy,       0)
-               , (Food,         0)
-               , (Supplies,     0)
-               , (CyberModules, 0)
-               , (Silicium,     0)
-               ]
+defaultCargo = Cargo (map (\w -> (w,0)) allWares)
 
 -- This function transforms a list of (Ware, Amount) tuples
 -- into a list of closures that add (Ware, Amount) to a given Cargo
